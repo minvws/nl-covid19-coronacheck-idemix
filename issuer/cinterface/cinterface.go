@@ -3,24 +3,34 @@ package main
 import "C"
 import (
 	"encoding/json"
+	"fmt"
 	"github.com/privacybydesign/gabi"
 	"github.com/privacybydesign/gabi/big"
 	"github.com/minvws/nl-covid19-coronatester-ctcl-core/common"
 	"github.com/minvws/nl-covid19-coronatester-ctcl-core/issuer"
 )
 
-// export GetIssuingNonce
-func GenerateIssuerNonceB64() *C.Char {
+//export GenerateIssuerNonceB64
+func GenerateIssuerNonceB64() *C.char {
 	issuerNonceB64, err := json.Marshal(issuer.GenerateIssuerNonce())
 	if err != nil {
 		panic("Could not serialize issuer nonce")
 	}
 
-	return C.CString(issuerNonceB64)
+	return C.CString(string(issuerNonceB64))
 }
 
-// export Issue
-func Issue(issuerPkXml, issuerSkXml, issuerNonceB64, commitmentsJson string, attributeValues []string) *C.Char {
+//export Issue
+func Issue(issuerPkXml, issuerSkXml, issuerNonceB64, commitmentsJson, attributesJson string) *C.char {
+	defer func() *C.char {
+		if r := recover(); r != nil {
+			errorMessage := fmt.Sprintf("Error: %s", r)
+			return C.CString(errorMessage)
+		} else {
+			return C.CString("Error: undefined")
+		}
+	}()
+
 	issuerNonce := new(big.Int)
 	err := issuerNonce.UnmarshalJSON([]byte(issuerNonceB64))
 	if err != nil {
@@ -31,13 +41,27 @@ func Issue(issuerPkXml, issuerSkXml, issuerNonceB64, commitmentsJson string, att
 		panic("Invalid length for issuerNonce")
 	}
 
+	// Attributes
+	var attributes []string
+	err = json.Unmarshal([]byte(attributesJson), &attributes)
+	if err != nil {
+		panic("Could not deserialize attributes")
+	}
+
 	// Commitments
-	var commitments *gabi.IssueCommitmentMessage
+	commitments := new(gabi.IssueCommitmentMessage)
 	err = json.Unmarshal([]byte(commitmentsJson), commitments)
 	if err != nil {
 		panic("Could not deserialize commitments")
 	}
 
-	sig := issuer.Issue(issuerPkXml, issuerSkXml, issuerNonce, attributeValues, commitments)
-	return C.CString(json.Marshal(sig))
+	sig := issuer.Issue(issuerPkXml, issuerSkXml, issuerNonce, attributes, commitments)
+	sigBytes, _ := json.Marshal(sig)
+	sigString := string(sigBytes)
+
+	return C.CString(sigString)
+}
+
+func main() {
+
 }
