@@ -1,6 +1,64 @@
-package main
+package clmobile
 
-var issuerPkXml = `
+import (
+"encoding/json"
+"fmt"
+"github.com/minvws/nl-covid19-coronatester-ctcl-core/issuer"
+"github.com/privacybydesign/gabi"
+"testing"
+)
+
+func TestFlow(t *testing.T) {
+	r1 := GenerateHolderSk()
+	if r1.Error != "" {
+		panic("Error in GenerateHolderSk: " + r1.Error)
+	}
+
+	issuerNonce := issuer.GenerateIssuerNonce()
+	issuerNonceBase64, _ := issuerNonce.MarshalText()
+
+	r2 := CreateCommitmentMessage(r1.Value, []byte(testIssuerPkXml), issuerNonceBase64)
+	if r2.Error != "" {
+		panic("Error in CreateCommitmentMessage: " + r2.Error)
+	}
+
+	icm := new(gabi.IssueCommitmentMessage)
+	err := json.Unmarshal(r2.Value, icm)
+	if err != nil {
+		panic("Error serializing ICM")
+	}
+
+	attributeValues := []string{"foo", "bar"}
+	ism := issuer.Issue(testIssuerPkXml, testIssuerSkXml, issuerNonce, attributeValues, icm)
+
+	ccm := &CreateCredentialMessage{
+		IssueSignatureMessage: ism,
+		AttributeValues:       attributeValues,
+	}
+	ccmJson, _ := json.Marshal(ccm)
+
+	r3 := CreateCredential(r1.Value, ccmJson)
+	if r3.Error != "" {
+		panic("Error creating credential:" + r3.Error)
+	}
+
+	r4 := DiscloseAllWithTime([]byte(testIssuerPkXml), r3.Value)
+	if r4.Error != "" {
+		panic("Error disclosing credential: " + r4.Error)
+	}
+
+	r5 := Verify([]byte(testIssuerPkXml), r4.Value)
+	if r5.Error != "" {
+		panic("Error verifying credential: " + r5.Error)
+	}
+
+	fmt.Printf("Valid proof for time %d:\n", r5.UnixTimeSeconds)
+	for k, v := range r5.AttributeValues {
+		fmt.Printf("%d: %s\n", k, v)
+	}
+}
+
+var testIssuerPkXml = `
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <IssuerPublicKey xmlns="http://www.zurich.ibm.com/security/idemix">
    <Counter>0</Counter>
@@ -30,7 +88,7 @@ var issuerPkXml = `
 </IssuerPublicKey>
 `
 
-var issuerSkXml = `
+var testIssuerSkXml = `
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <IssuerPrivateKey xmlns="http://www.zurich.ibm.com/security/idemix">
    <Counter>0</Counter>
