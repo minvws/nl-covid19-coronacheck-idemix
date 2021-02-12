@@ -1,0 +1,19 @@
+name: Lint go code
+
+on:
+  push:
+    branches: [main, develop, release/**, hotfix/**]
+  pull_request:
+    branches: [main, develop, release/**, hofix/**]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-20.04
+
+    steps:
+      - uses: actions/checkout@v1
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v2
+        with:
+          version: v1.29
