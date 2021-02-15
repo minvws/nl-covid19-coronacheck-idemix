@@ -71,6 +71,29 @@ func TestFlow(t *testing.T) {
 	}
 }
 
+func TestExampleISM(t *testing.T) {
+	testISMJson := `{"ism":{"proof":{"c":"iithLgatoyJxcN72l8AFmF0Aa6RQlLt+u9Zize2YGNk=","e_response":"D2kzlkHRV935Z5+c5rhyNKdMpM9yNaMfje3BJMc0YmnG69143j+Cd0ih8Ff6/tLLsr1/bHmIQz3RHK2G6oguPCUMxINeYH8coJtEUaC2d1NXZtVubvQOLQkoB4JbZBXrmNYcx121/A3+dPu58s1hKtKi31rLhDlCBptbjnK1vuQzQ+uGqcPg3Vmh9zvQMPvwBGR0qdz1H7Z3+0soBxuYHQycWQLUyn/QjwvEZW68tZZjZz+bbgInkFcrznZzMtIjcGStCLLhxX1LtXLM9BVs68hAJMoGx/+EIqXDa/ItOGrbN7xtlGnKEU/RezRb2SOHdyiNnH52HQ4UHgDfczZfSg=="},"signature":{"A":"gdFZruPdQq0nyvPAlvtXBty9BVKlc1zBjb4GJCNC/wxUBByKKK6alnuGECPVIM9liFIaKyAksPO/DuE1Lfv08moJQuhPVO6CTfDYTgCs3ABuAw45CjsbuIXtq/w+TJGsy87ulJjFOybIAdvyj2hX0by5ETNCNKe2BcAdEW4qhtuh3F6SBWwIxYcI/fLizUOdXUdodKHRIRdJQ+VI8WTmNeHn8hf9rIa8zPUB4YjwU3VhSo8+JRoVo+KreUnSUPXI7gVA1Zfm3bNXJ4xID3oUHSBdbw7QWypduNnw/Urg/qOTVMeKdrKKRsUWtqt+fnW5nm4p1qfh1UsPk4MHZLpW8w==","e":"EAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABu3AyxqaBXngC8PaIJJL","v":"C92Xn5Ehdh1jLLM0Jgz6bfjuPigRPNnDonnd9rusIZEjRO8A9/+fNJhnqRNLQrH1VPndOCKEQHAjm2zuaBvDM7BDvJPAjD7nQ2D8wV3ITxzLWxz0yhz/1PUijHxXlKsEhZIfSpiVNjgWiTJKV9APL1tZTV1qk5AgEI43Ux4KquuUa1MQPfDY88ggMMrWiKE3m8G2AAF/fIGoga2HYxP1C81ERdCBiBJQbC+4zP04V1mNj4hduHymmbvPOfksssL58wKQXk1lnRFPyQJR0bdH6OstjZfkL5A/YWin5U6Sk5lVAb1ZV+jBC9fulqFKY6qpa3/Jh+IuncTZ7bDFaKYMd5F3KCTv75BhfRTy7gncJFmxdZ8rGKFxk9yKBOyybQppvJ+AmYcNgtsR95KtPfG2ApXynFYFJUR0XOIY4itZHdc7koEAJSE9GGZ76DvzsRBlwKFCRWJnwv+pikNBYHwSWc8=","KeyshareP":null}},"attributes":{"testType":"e556ecd395a1","sampleTime":"2021-01-19T12:03:00+01:00"}}`
+	ccm := new(CreateCredentialMessage)
+
+	err := json.Unmarshal([]byte(testISMJson), ccm)
+	if err != nil {
+		panic("Error unmarshalling example: " + err.Error())
+	}
+}
+
+func TestExampleQR(t *testing.T) {
+	testQRBase64 := `MIIDdgIEYCpdWjAJAQEAAQH/AQH/AiEA+b9RKorjP3lf217uPb4siUFGSjsunjsS+ZBGd8JrOt8CggEAAqP6ZOXLtwBcQGTACuLZu8o1VB4KOML6QkBW55uXojvDmTSFlIKPYpdwzQJHwEvyOs5sF/VQDCzFU7U4G1un5qBR7WM1ShzohChhweesCUL14cXaZ8NdtLoy5lC6FaMf8SrnGo5I/79X0m0ZBSlY650QlKBl1XfmsXVPLGSphk+WTLK5eXBspyc0zC82BqBN97IZLrrPwDdoR8wyqtchHEAec8D33Rjc8uj4PH6vA2rMnMjn4mH3d7z/SNfUotV6rXosxQH1BC2vkrniWZiWQoTKNpBHw88qs3io0SbpKwhcAyNHdqxyfhxngYGR5W8LGSQolaVXWcmQrZnFCM5wJAI/VFJb9QenhAV5wBTP2POMudouMVNlu6PUv0yIGrnPyNTqXwv4xtzgCKZtS6YVk+ntLwOmS91Ldm9f8ByznybJAoIBkQ/Uut379ldGe2RHi8r8ZLpmpDNefeSin8BzBCpAZDkaKGrjctCmpd0mLDWgAb+A/G7hUOqrfpli3w6/NdjHoCewn3LPMGEYWo9NWmhKtC5KlOKQPPZ5P8lcSZ1B5GdaAuk/cPvzepPsYLz3IbVlK2mWdrXyH+Wo34RFnBy+tTFbHYNbMeWHqTgf0CcnsC5lTZ1cyJ8I1b9yYJx1xA+k8Eir0rgJpGWzMTmQSNuGtO2GtnzLyA9VQ13kHp7gIbrP0LVE7OAOKVtcyQ1jMOmhHZLKhtITUBQlmlGmVIo9BRzEMeStyjZldQIZwzownTFjdH4UYuGgVeLUBIdUT/oi74/Dsq5H7iAk6nXC6gF8Twl2rgjCYh3VxM0275hS3ByBxR3Ewio9gv/1ZaPyBAFMFXhaDWzgnRSkJpHOhb1dQfHM9uRRP75QH24YkZ+vaczmsqAdgYOxQc9SnXpCHq+iZ0vDSFjUaIuTm5g7Eur2g63NWGK41kdfogQAcR6zR83zLN88Dcgkatne3FC6PxtX3e9xMEwCSnrFWkQ0Bmimm3kY3e/hprG8AAAMtfVz9eJnLLp8G25ezw57hyNL6IOEWdgDjv4+Nq3vOm1bnIKod+iV8scpW/yebkabTTuc3qWjMBgCCm5uasbCwmRiaHMCCmJsYmZkcGRobGM=`
+	proofAsn1, err := base64.StdEncoding.DecodeString(testQRBase64)
+	if err != nil {
+		panic("Error decoding QR base64: " + err.Error())
+	}
+
+	result := Verify([]byte(testIssuerPkXml), proofAsn1)
+	if result.Error != "" {
+		panic("Error verifying proof: " + result.Error)
+	}
+}
+
 var testIssuerPkXml = `
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <IssuerPublicKey xmlns="http://www.zurich.ibm.com/security/idemix">
