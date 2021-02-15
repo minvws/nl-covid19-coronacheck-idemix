@@ -57,7 +57,7 @@ func CreateCommitmentMessage(holderSkJson, issuerPkXml, issuerNonceBase64 []byte
 
 type CreateCredentialMessage struct {
 	IssueSignatureMessage *gabi.IssueSignatureMessage `json:"ism"`
-	AttributeValues       []string                    `json:"attributes"`
+	Attributes            map[string]string           `json:"attributes"`
 }
 
 func CreateCredential(holderSkJson, ccmJson []byte) *Result {
@@ -75,7 +75,7 @@ func CreateCredential(holderSkJson, ccmJson []byte) *Result {
 
 	credBuilder := dirtyHack // FIXME
 
-	cred, err := holder.CreateCredential(credBuilder, ccm.IssueSignatureMessage, ccm.AttributeValues)
+	cred, err := holder.CreateCredential(credBuilder, ccm.IssueSignatureMessage, ccm.Attributes)
 	if err != nil {
 		return &Result{nil, errors.WrapPrefix(err, "Could not create credential", 0).Error()}
 	}
@@ -111,9 +111,9 @@ func DiscloseAllWithTime(issuerPkXml, credJson []byte) *Result {
 }
 
 type VerifyResult struct {
-	AttributeValues []string
+	AttributesJson  []byte
 	UnixTimeSeconds int64
-	Error string
+	Error           string
 }
 
 func Verify(issuerPkXml, proofAsn1 []byte) *VerifyResult {
@@ -122,12 +122,17 @@ func Verify(issuerPkXml, proofAsn1 []byte) *VerifyResult {
 		return &VerifyResult{nil, 0, errors.WrapPrefix(err, "Could not unmarshal issuer public key", 0).Error()}
 	}
 
-	attributeValues, unixTimeSeconds, err := verifier.Verify(issuerPk, proofAsn1)
+	attributes, unixTimeSeconds, err := verifier.Verify(issuerPk, proofAsn1)
 	if err != nil {
 		return &VerifyResult{nil, 0, errors.WrapPrefix(err, "Could not verify proof", 0).Error()}
 	}
 
-	return &VerifyResult{attributeValues, unixTimeSeconds, ""}
+	attributesJson, err := json.Marshal(attributes)
+	if err != nil {
+		return &VerifyResult{nil, 0, errors.WrapPrefix(err, "Could not marshal attributes", 0).Error()}
+	}
+
+	return &VerifyResult{attributesJson, unixTimeSeconds, ""}
 }
 
 func base64DecodeBigInt(b64 []byte) (*big.Int, error) {

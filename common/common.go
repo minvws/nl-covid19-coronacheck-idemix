@@ -15,7 +15,7 @@ import (
 var BigOne = big.NewInt(1)
 var GabiSystemParameters = gabi.DefaultSystemParameters[2048]
 
-var AttributeTypes = []string{"testType", "testedAt"}
+var AttributeTypes = []string{"testType", "sampleTime"}
 
 type ProofSerialization struct {
 	UnixTimeSeconds   int64
@@ -45,9 +45,23 @@ func GenerateNonce() *big.Int {
 	return RandomBigInt(GabiSystemParameters.Lstatzk)
 }
 
-func ComputeAttributes(attributeValues []string) ([]*big.Int, error) {
-	if len(AttributeTypes) != len(attributeValues) {
+func ComputeAttributes(attributes map[string]string) ([]*big.Int, error) {
+	attributeAmount := len(attributes)
+	if attributeAmount != len(AttributeTypes) {
 		return nil, errors.New("Amount of attribute values don't match amount of attribute types")
+	}
+
+	// Map map to list of attributes in the correct order
+	attributeValues := make([]string, attributeAmount)
+	for i := 0; i < attributeAmount; i++ {
+		attributeType := AttributeTypes[i]
+
+		v, ok := attributes[attributeType]
+		if !ok {
+			return nil, errors.Errorf("Required attribute %s was not supplied", attributeType)
+		}
+
+		attributeValues[i] = v
 	}
 
 	// Compute attributes

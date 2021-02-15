@@ -8,7 +8,7 @@ import (
 	"github.com/privacybydesign/gabi/big"
 )
 
-func Verify(issuerPk *gabi.PublicKey, proofAsn1 []byte) ([]string, int64, error) {
+func Verify(issuerPk *gabi.PublicKey, proofAsn1 []byte) (map[string]string, int64, error) {
 	// Deserialize proof
 	ps := &common.ProofSerialization{}
 	_, err := asn1.Unmarshal(proofAsn1, ps)
@@ -73,7 +73,7 @@ func Verify(issuerPk *gabi.PublicKey, proofAsn1 []byte) ([]string, int64, error)
 	}
 
 	// Retrieve attribute values
-	values := make([]string, len(common.AttributeTypes))
+	attributes := make(map[string]string)
 	for disclosureIndex, dd := range aDisclosed {
 		d := new(big.Int).Set(dd)
 
@@ -86,8 +86,9 @@ func Verify(issuerPk *gabi.PublicKey, proofAsn1 []byte) ([]string, int64, error)
 			value = string(d.Bytes())
 		}
 
-		values[disclosureIndex - 1] = value
+		attributeType := common.AttributeTypes[disclosureIndex-1]
+		attributes[attributeType] = value
 	}
 
-	return values, ps.UnixTimeSeconds, nil
+	return attributes, ps.UnixTimeSeconds, nil
 }

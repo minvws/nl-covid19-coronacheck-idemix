@@ -3,9 +3,9 @@ package issuer
 import "C"
 
 import (
+	"github.com/minvws/nl-covid19-coronatester-ctcl-core/common"
 	"github.com/privacybydesign/gabi"
 	"github.com/privacybydesign/gabi/big"
-	"github.com/minvws/nl-covid19-coronatester-ctcl-core/common"
 )
 
 type IssuanceSession struct {
@@ -20,7 +20,7 @@ func GenerateIssuerNonce() *big.Int {
 	return common.GenerateNonce()
 }
 
-func Issue(issuerPkXml, issuerSkXml string, issuerNonce *big.Int, attributeValues []string, cmmMsg *gabi.IssueCommitmentMessage) *gabi.IssueSignatureMessage {
+func Issue(issuerPkXml, issuerSkXml string, issuerNonce *big.Int, attributes map[string]string, cmmMsg *gabi.IssueCommitmentMessage) *gabi.IssueSignatureMessage {
 	issuerPk, err := gabi.NewPublicKeyFromXML(issuerPkXml)
 	if err != nil {
 		panic("Could not deserialize issuer public key")
@@ -31,12 +31,12 @@ func Issue(issuerPkXml, issuerSkXml string, issuerNonce *big.Int, attributeValue
 		panic("Could not deserialize issuer private key")
 	}
 
-	return issue(issuerPk, issuerSk, issuerNonce, attributeValues, cmmMsg)
+	return issue(issuerPk, issuerSk, issuerNonce, attributes, cmmMsg)
 }
 
-func issue(issuerPk *gabi.PublicKey, issuerSk *gabi.PrivateKey, issuerNonce *big.Int, attributeValues []string, cmmMsg *gabi.IssueCommitmentMessage) *gabi.IssueSignatureMessage {
+func issue(issuerPk *gabi.PublicKey, issuerSk *gabi.PrivateKey, issuerNonce *big.Int, attributes map[string]string, cmmMsg *gabi.IssueCommitmentMessage) *gabi.IssueSignatureMessage {
 	// Compute attribute values
-	attributeInts, err := common.ComputeAttributes(attributeValues)
+	attributeInts, err := common.ComputeAttributes(attributes)
 	if err != nil {
 		panic("Error during computing attributes: " + err.Error())
 	}

@@ -4,10 +4,10 @@ import "C"
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/privacybydesign/gabi"
-	"github.com/privacybydesign/gabi/big"
 	"github.com/minvws/nl-covid19-coronatester-ctcl-core/common"
 	"github.com/minvws/nl-covid19-coronatester-ctcl-core/issuer"
+	"github.com/privacybydesign/gabi"
+	"github.com/privacybydesign/gabi/big"
 )
 
 //export GenerateIssuerNonceB64
@@ -42,7 +42,7 @@ func Issue(issuerPkXml, issuerSkXml, issuerNonceB64, commitmentsJson, attributes
 	}
 
 	// Attributes
-	var attributes []string
+	var attributes map[string]string
 	err = json.Unmarshal([]byte(attributesJson), &attributes)
 	if err != nil {
 		panic("Could not deserialize attributes")

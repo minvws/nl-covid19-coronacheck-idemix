@@ -1,11 +1,11 @@
 package clmobile
 
 import (
-"encoding/json"
-"fmt"
-"github.com/minvws/nl-covid19-coronatester-ctcl-core/issuer"
-"github.com/privacybydesign/gabi"
-"testing"
+	"encoding/json"
+	"fmt"
+	"github.com/minvws/nl-covid19-coronatester-ctcl-core/issuer"
+	"github.com/privacybydesign/gabi"
+	"testing"
 )
 
 func TestFlow(t *testing.T) {
@@ -28,12 +28,12 @@ func TestFlow(t *testing.T) {
 		panic("Error serializing ICM")
 	}
 
-	attributeValues := []string{"foo", "bar"}
-	ism := issuer.Issue(testIssuerPkXml, testIssuerSkXml, issuerNonce, attributeValues, icm)
+	attributes := map[string]string{"testType": "foo", "sampleTime": "bar"}
+	ism := issuer.Issue(testIssuerPkXml, testIssuerSkXml, issuerNonce, attributes, icm)
 
 	ccm := &CreateCredentialMessage{
 		IssueSignatureMessage: ism,
-		AttributeValues:       attributeValues,
+		Attributes:            attributes,
 	}
 	ccmJson, _ := json.Marshal(ccm)
 
@@ -53,8 +53,15 @@ func TestFlow(t *testing.T) {
 	}
 
 	fmt.Printf("Valid proof for time %d:\n", r5.UnixTimeSeconds)
-	for k, v := range r5.AttributeValues {
-		fmt.Printf("%d: %s\n", k, v)
+
+	var verifiedAttributes map[string]interface{}
+	err = json.Unmarshal(r5.AttributesJson, &verifiedAttributes)
+	if err != nil {
+		panic("Error unmarshalling attributes")
+	}
+
+	for k, v := range verifiedAttributes {
+		fmt.Printf("%s: %s\n", k, v)
 	}
 }
 
