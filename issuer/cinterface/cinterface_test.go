@@ -7,8 +7,11 @@ import (
 func TestIssue(t *testing.T) {
     issuerNonceB64 := "\"hgc3oMZzWd/rEcjdpHsNnw==\""
     commitmentsJson := commitments
-    attributesJson := "[\"foo\", \"bar\"]"
-    Issue(issuerPkXml, issuerSkXml, issuerNonceB64, commitmentsJson, attributesJson)
+    attributesJson := "{\"sampleTime\":\"2021-02-15T12:00:00.0000000Z\",\"testType\":\"PCR\"}"
+    got := Issue(issuerPkXml, issuerSkXml, issuerNonceB64, commitmentsJson, attributesJson)
+    if got == nil {
+        t.Errorf("Expected proof of test but got: %d", got)
+    }
 }
 
 var issuerPkXml = `
