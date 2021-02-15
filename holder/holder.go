@@ -36,7 +36,7 @@ func ReadCredential(cred *gabi.Credential) (map[string]string, error) {
 	attributes := make(map[string]string)
 	for i := 0; i < attributeAmount; i++ {
 		attributeType := common.AttributeTypes[i]
-		attributes[attributeType] = common.DecodeAttributeInt(cred.Attributes[i + 1])
+		attributes[attributeType] = common.DecodeAttributeInt(cred.Attributes[i+1])
 	}
 
 	return attributes, nil
