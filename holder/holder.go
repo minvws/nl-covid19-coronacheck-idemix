@@ -52,7 +52,7 @@ func DiscloseAllWithTime(cred *gabi.Credential) ([]byte, error) {
 
 func maximumDisclosureChoices(cred *gabi.Credential) []bool {
 	choices := make([]bool, len(cred.Attributes)-1)
-	for i, _ := range choices {
+	for i := range choices {
 		choices[i] = true
 	}
 

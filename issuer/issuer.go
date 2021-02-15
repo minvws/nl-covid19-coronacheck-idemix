@@ -14,8 +14,6 @@ type IssuanceSession struct {
 	AttributeValues []string
 }
 
-var issuanceSessions = map[int]*IssuanceSession{}
-
 func GenerateIssuerNonce() *big.Int {
 	return common.GenerateNonce()
 }
