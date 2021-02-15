@@ -124,6 +124,7 @@ var testIssuerPkXml = `
 </IssuerPublicKey>
 `
 
+// This private key is only included for testing purposes
 var testIssuerSkXml = `
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <IssuerPrivateKey xmlns="http://www.zurich.ibm.com/security/idemix">
