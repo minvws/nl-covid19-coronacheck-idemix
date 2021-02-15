@@ -88,6 +88,26 @@ func CreateCredential(holderSkJson, ccmJson []byte) *Result {
 	return &Result{credJson, ""}
 }
 
+func ReadCredential(credJson []byte) *Result {
+	cred := new(gabi.Credential)
+	err := json.Unmarshal(credJson, cred)
+	if err != nil {
+		return &Result{nil, errors.WrapPrefix(err, "Could not unmarshal credential", 0).Error()}
+	}
+
+	attributes, err := holder.ReadCredential(cred)
+	if err != nil {
+		return &Result{nil, errors.WrapPrefix(err, "Could not read credential", 0).Error()}
+	}
+
+	attributesJson, err := json.Marshal(attributes)
+	if err != nil {
+		return &Result{nil, errors.WrapPrefix(err, "Could marshal attributes", 0).Error()}
+	}
+
+	return &Result{attributesJson, ""}
+}
+
 func DiscloseAllWithTime(issuerPkXml, credJson []byte) *Result {
 	issuerPk, err := gabi.NewPublicKeyFromXML(string(issuerPkXml))
 	if err != nil {

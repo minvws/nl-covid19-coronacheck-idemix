@@ -1,6 +1,7 @@
 package clmobile
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"github.com/minvws/nl-covid19-coronatester-ctcl-core/issuer"
@@ -42,20 +43,25 @@ func TestFlow(t *testing.T) {
 		panic("Error creating credential:" + r3.Error)
 	}
 
-	r4 := DiscloseAllWithTime([]byte(testIssuerPkXml), r3.Value)
+	r4 := ReadCredential(r3.Value)
 	if r4.Error != "" {
-		panic("Error disclosing credential: " + r4.Error)
+		panic("Error reading credential: " + r4.Error)
 	}
 
-	r5 := Verify([]byte(testIssuerPkXml), r4.Value)
+	r5 := DiscloseAllWithTime([]byte(testIssuerPkXml), r3.Value)
 	if r5.Error != "" {
-		panic("Error verifying credential: " + r5.Error)
+		panic("Error disclosing credential: " + r5.Error)
 	}
 
-	fmt.Printf("Valid proof for time %d:\n", r5.UnixTimeSeconds)
+	r6 := Verify([]byte(testIssuerPkXml), r5.Value)
+	if r6.Error != "" {
+		panic("Error verifying proof: " + r6.Error)
+	}
+
+	fmt.Printf("Valid proof for time %d:\n", r6.UnixTimeSeconds)
 
 	var verifiedAttributes map[string]interface{}
-	err = json.Unmarshal(r5.AttributesJson, &verifiedAttributes)
+	err = json.Unmarshal(r6.AttributesJson, &verifiedAttributes)
 	if err != nil {
 		panic("Error unmarshalling attributes")
 	}

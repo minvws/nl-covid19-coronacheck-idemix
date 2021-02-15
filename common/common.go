@@ -78,6 +78,18 @@ func ComputeAttributes(attributes map[string]string) ([]*big.Int, error) {
 	return attrs, nil
 }
 
+func DecodeAttributeInt(a *big.Int) string {
+	attributeInt := new(big.Int).Set(a)
+
+	if attributeInt.Bit(0) == 0 {
+		// TODO: Decide if and how to support optional attributes
+		return ""
+	} else {
+		attributeInt.Rsh(attributeInt, 1)
+		return string(attributeInt.Bytes())
+	}
+}
+
 func CalculateTimeBasedChallenge(unixTimeSeconds int64) *big.Int {
 	// Calculate the challenge as the sha256sum of the decimal string representation
 	// of  the given unix timestamp in seconds. Cut off to appropriate amount of bits

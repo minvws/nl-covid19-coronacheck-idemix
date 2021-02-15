@@ -27,6 +27,21 @@ func CreateCredential(credBuilder *gabi.CredentialBuilder, ism *gabi.IssueSignat
 	return cred, nil
 }
 
+func ReadCredential(cred *gabi.Credential) (map[string]string, error) {
+	attributeAmount := len(cred.Attributes) - 1
+	if attributeAmount != len(common.AttributeTypes) {
+		return nil, errors.Errorf("Unexpected amount of attributes in credential")
+	}
+
+	attributes := make(map[string]string)
+	for i := 0; i < attributeAmount; i++ {
+		attributeType := common.AttributeTypes[i]
+		attributes[attributeType] = common.DecodeAttributeInt(cred.Attributes[i + 1])
+	}
+
+	return attributes, nil
+}
+
 func DiscloseAll(cred *gabi.Credential, challenge *big.Int) ([]byte, error) {
 	return Disclose(cred, maximumDisclosureChoices(cred), challenge)
 }

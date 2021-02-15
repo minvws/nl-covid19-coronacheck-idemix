@@ -74,20 +74,9 @@ func Verify(issuerPk *gabi.PublicKey, proofAsn1 []byte) (map[string]string, int6
 
 	// Retrieve attribute values
 	attributes := make(map[string]string)
-	for disclosureIndex, dd := range aDisclosed {
-		d := new(big.Int).Set(dd)
-
-		var value string
-		if d.Bit(0) == 0 {
-			// TODO: Decide if and how to support optional attributes
-			value = ""
-		} else {
-			d.Rsh(d, 1)
-			value = string(d.Bytes())
-		}
-
+	for disclosureIndex, d := range aDisclosed {
 		attributeType := common.AttributeTypes[disclosureIndex-1]
-		attributes[attributeType] = value
+		attributes[attributeType] = common.DecodeAttributeInt(d)
 	}
 
 	return attributes, ps.UnixTimeSeconds, nil
