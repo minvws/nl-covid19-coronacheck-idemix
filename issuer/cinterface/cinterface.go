@@ -4,7 +4,6 @@ import "C"
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/minvws/nl-covid19-coronatester-ctcl-core/common"
 	"github.com/minvws/nl-covid19-coronatester-ctcl-core/issuer"
 	"github.com/privacybydesign/gabi"
 	"github.com/privacybydesign/gabi/big"
