@@ -37,10 +37,6 @@ func Issue(issuerPkXml, issuerSkXml, issuerNonceB64, commitmentsJson, attributes
 		panic("Could not deserialize issuerNonce")
 	}
 
-	if issuerNonce.BitLen() != int(common.GabiSystemParameters.Lstatzk) {
-		panic("Invalid length for issuerNonce")
-	}
-
 	// Attributes
 	var attributes map[string]string
 	err = json.Unmarshal([]byte(attributesJson), &attributes)
