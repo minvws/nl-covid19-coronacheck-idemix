@@ -3,7 +3,7 @@ package clmobile
 import (
 	"encoding/base64"
 	"encoding/json"
-	"fmt"
+	"github.com/go-errors/errors"
 	"github.com/minvws/nl-covid19-coronatester-ctcl-core/issuer"
 	"github.com/privacybydesign/gabi"
 	"testing"
@@ -12,7 +12,7 @@ import (
 func TestFlow(t *testing.T) {
 	r1 := GenerateHolderSk()
 	if r1.Error != "" {
-		panic("Error in GenerateHolderSk: " + r1.Error)
+		t.Fatal("Error in GenerateHolderSk:", r1.Error)
 	}
 
 	issuerNonce := issuer.GenerateIssuerNonce()
@@ -20,13 +20,13 @@ func TestFlow(t *testing.T) {
 
 	r2 := CreateCommitmentMessage(r1.Value, []byte(testIssuerPkXml), issuerNonceBase64)
 	if r2.Error != "" {
-		panic("Error in CreateCommitmentMessage: " + r2.Error)
+		t.Fatal("Error in CreateCommitmentMessage:", r2.Error)
 	}
 
 	icm := new(gabi.IssueCommitmentMessage)
 	err := json.Unmarshal(r2.Value, icm)
 	if err != nil {
-		panic("Error serializing ICM")
+		t.Fatal("Error serializing ICM")
 	}
 
 	attributes := map[string]string{"testType": "foo", "sampleTime": "bar"}
@@ -40,35 +40,64 @@ func TestFlow(t *testing.T) {
 
 	r3 := CreateCredential(r1.Value, ccmJson)
 	if r3.Error != "" {
-		panic("Error creating credential:" + r3.Error)
+		t.Fatal("Error creating credential:", r3.Error)
 	}
 
 	r4 := ReadCredential(r3.Value)
 	if r4.Error != "" {
-		panic("Error reading credential: " + r4.Error)
+		t.Fatal("Error reading credential:", r4.Error)
 	}
 
 	r5 := DiscloseAllWithTime([]byte(testIssuerPkXml), r3.Value)
 	if r5.Error != "" {
-		panic("Error disclosing credential: " + r5.Error)
+		t.Fatal("Error disclosing credential:", r5.Error)
 	}
 
 	r6 := Verify([]byte(testIssuerPkXml), r5.Value)
 	if r6.Error != "" {
-		panic("Error verifying proof: " + r6.Error)
+		t.Fatal("Error verifying proof:", r6.Error)
 	}
 
-	fmt.Printf("Valid proof for time %d:\n", r6.UnixTimeSeconds)
-
-	var verifiedAttributes map[string]interface{}
-	err = json.Unmarshal(r6.AttributesJson, &verifiedAttributes)
+	err = checkAttributesJson(attributes, r6.AttributesJson)
 	if err != nil {
-		panic("Error unmarshalling attributes")
+		t.Fatal("Error verifying attributes:", err)
 	}
 
-	for k, v := range verifiedAttributes {
-		fmt.Printf("%s: %s\n", k, v)
+	r7 := DiscloseAllWithTimeQrEncoded([]byte(testIssuerPkXml), r1.Value, r3.Value)
+	if r7.Error != "" {
+		t.Fatal("Error disclosing credential QR encoded:", r7.Error)
 	}
+
+	r8 := VerifyQREncoded([]byte(testIssuerPkXml), r7.Value)
+	if r8.Error != "" {
+		t.Fatal("Error verifying QR encoded proof:", r8.Error)
+	}
+
+	err = checkAttributesJson(attributes, r6.AttributesJson)
+	if err != nil {
+		t.Fatal("Error verifying attributes from QR encoded proof:", err)
+	}
+}
+
+func checkAttributesJson(attributes map[string]string, attributesJson []byte) error {
+	var decodedAttributes map[string]interface{}
+	err := json.Unmarshal(attributesJson, &decodedAttributes)
+	if err != nil {
+		return errors.New("Error unmarshalling attributes json")
+	}
+
+	if len(attributes) != len(decodedAttributes) {
+		return errors.New("Decoded attributes amount mismatch")
+	}
+
+	for k, v := range decodedAttributes {
+		vv, ok := attributes[k]
+		if !ok || v != vv {
+			return errors.New("Decoded attributes mismatch")
+		}
+	}
+
+	return nil
 }
 
 func TestExampleISM(t *testing.T) {
@@ -77,7 +106,7 @@ func TestExampleISM(t *testing.T) {
 
 	err := json.Unmarshal([]byte(testISMJson), ccm)
 	if err != nil {
-		panic("Error unmarshalling example: " + err.Error())
+		t.Fatal("Error unmarshalling example:", err.Error())
 	}
 }
 
@@ -85,12 +114,12 @@ func TestExampleQR(t *testing.T) {
 	testQRBase64 := `MIIDdgIEYCpdWjAJAQEAAQH/AQH/AiEA+b9RKorjP3lf217uPb4siUFGSjsunjsS+ZBGd8JrOt8CggEAAqP6ZOXLtwBcQGTACuLZu8o1VB4KOML6QkBW55uXojvDmTSFlIKPYpdwzQJHwEvyOs5sF/VQDCzFU7U4G1un5qBR7WM1ShzohChhweesCUL14cXaZ8NdtLoy5lC6FaMf8SrnGo5I/79X0m0ZBSlY650QlKBl1XfmsXVPLGSphk+WTLK5eXBspyc0zC82BqBN97IZLrrPwDdoR8wyqtchHEAec8D33Rjc8uj4PH6vA2rMnMjn4mH3d7z/SNfUotV6rXosxQH1BC2vkrniWZiWQoTKNpBHw88qs3io0SbpKwhcAyNHdqxyfhxngYGR5W8LGSQolaVXWcmQrZnFCM5wJAI/VFJb9QenhAV5wBTP2POMudouMVNlu6PUv0yIGrnPyNTqXwv4xtzgCKZtS6YVk+ntLwOmS91Ldm9f8ByznybJAoIBkQ/Uut379ldGe2RHi8r8ZLpmpDNefeSin8BzBCpAZDkaKGrjctCmpd0mLDWgAb+A/G7hUOqrfpli3w6/NdjHoCewn3LPMGEYWo9NWmhKtC5KlOKQPPZ5P8lcSZ1B5GdaAuk/cPvzepPsYLz3IbVlK2mWdrXyH+Wo34RFnBy+tTFbHYNbMeWHqTgf0CcnsC5lTZ1cyJ8I1b9yYJx1xA+k8Eir0rgJpGWzMTmQSNuGtO2GtnzLyA9VQ13kHp7gIbrP0LVE7OAOKVtcyQ1jMOmhHZLKhtITUBQlmlGmVIo9BRzEMeStyjZldQIZwzownTFjdH4UYuGgVeLUBIdUT/oi74/Dsq5H7iAk6nXC6gF8Twl2rgjCYh3VxM0275hS3ByBxR3Ewio9gv/1ZaPyBAFMFXhaDWzgnRSkJpHOhb1dQfHM9uRRP75QH24YkZ+vaczmsqAdgYOxQc9SnXpCHq+iZ0vDSFjUaIuTm5g7Eur2g63NWGK41kdfogQAcR6zR83zLN88Dcgkatne3FC6PxtX3e9xMEwCSnrFWkQ0Bmimm3kY3e/hprG8AAAMtfVz9eJnLLp8G25ezw57hyNL6IOEWdgDjv4+Nq3vOm1bnIKod+iV8scpW/yebkabTTuc3qWjMBgCCm5uasbCwmRiaHMCCmJsYmZkcGRobGM=`
 	proofAsn1, err := base64.StdEncoding.DecodeString(testQRBase64)
 	if err != nil {
-		panic("Error decoding QR base64: " + err.Error())
+		t.Fatal("Error decoding QR base64:", err.Error())
 	}
 
 	result := Verify([]byte(testIssuerPkXml), proofAsn1)
 	if result.Error != "" {
-		panic("Error verifying proof: " + result.Error)
+		t.Fatal("Error verifying proof:", result.Error)
 	}
 }
 

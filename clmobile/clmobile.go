@@ -108,6 +108,15 @@ func ReadCredential(credJson []byte) *Result {
 	return &Result{attributesJson, ""}
 }
 
+func DiscloseAllWithTimeQrEncoded(issuerPkXml, holderSkJson, credJson []byte) *Result {
+	r := DiscloseAllWithTime(issuerPkXml, credJson)
+	if r.Error != "" {
+		return r
+	}
+
+	return &Result{qrEncode(r.Value), ""}
+}
+
 func DiscloseAllWithTime(issuerPkXml, credJson []byte) *Result {
 	issuerPk, err := gabi.NewPublicKeyFromXML(string(issuerPkXml))
 	if err != nil {
@@ -134,6 +143,15 @@ type VerifyResult struct {
 	AttributesJson  []byte
 	UnixTimeSeconds int64
 	Error           string
+}
+
+func VerifyQREncoded(issuerPkXml, proofQrEncodedAsn1 []byte) *VerifyResult {
+	proofAsn1, err := qrDecode(proofQrEncodedAsn1)
+	if err != nil {
+		return &VerifyResult{nil, 0, errors.WrapPrefix(err, "Could not decode QR", 0).Error()}
+	}
+
+	return Verify(issuerPkXml, proofAsn1)
 }
 
 func Verify(issuerPkXml, proofAsn1 []byte) *VerifyResult {
