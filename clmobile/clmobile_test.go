@@ -10,27 +10,32 @@ import (
 )
 
 func TestFlow(t *testing.T) {
-	r1 := GenerateHolderSk()
+	r1 := LoadIssuerPks([]string{"A"}, [][]byte{testIssuerPkXml})
 	if r1.Error != "" {
-		t.Fatal("Error in GenerateHolderSk:", r1.Error)
+		t.Fatal("Error loading issuer Pks")
+	}
+
+	r2 := GenerateHolderSk()
+	if r2.Error != "" {
+		t.Fatal("Error in GenerateHolderSk:", r2.Error)
 	}
 
 	issuerNonce := issuer.GenerateIssuerNonce()
 	issuerNonceBase64, _ := issuerNonce.MarshalText()
 
-	r2 := CreateCommitmentMessage(r1.Value, []byte(testIssuerPkXml), issuerNonceBase64)
-	if r2.Error != "" {
-		t.Fatal("Error in CreateCommitmentMessage:", r2.Error)
+	r3 := CreateCommitmentMessage(r2.Value, issuerNonceBase64)
+	if r3.Error != "" {
+		t.Fatal("Error in CreateCommitmentMessage:", r3.Error)
 	}
 
 	icm := new(gabi.IssueCommitmentMessage)
-	err := json.Unmarshal(r2.Value, icm)
+	err := json.Unmarshal(r3.Value, icm)
 	if err != nil {
 		t.Fatal("Error serializing ICM")
 	}
 
 	attributes := map[string]string{"testType": "foo", "sampleTime": "bar"}
-	ism := issuer.Issue(testIssuerPkXml, testIssuerSkXml, issuerNonce, attributes, icm)
+	ism := issuer.Issue(string(testIssuerPkXml), testIssuerSkXml, issuerNonce, attributes, icm)
 
 	ccm := &CreateCredentialMessage{
 		IssueSignatureMessage: ism,
@@ -38,42 +43,42 @@ func TestFlow(t *testing.T) {
 	}
 	ccmJson, _ := json.Marshal(ccm)
 
-	r3 := CreateCredential(r1.Value, ccmJson)
-	if r3.Error != "" {
-		t.Fatal("Error creating credential:", r3.Error)
-	}
-
-	r4 := ReadCredential(r3.Value)
+	r4 := CreateCredential(r2.Value, ccmJson)
 	if r4.Error != "" {
-		t.Fatal("Error reading credential:", r4.Error)
+		t.Fatal("Error creating credential:", r4.Error)
 	}
 
-	r5 := DiscloseAllWithTime([]byte(testIssuerPkXml), r3.Value)
+	r5 := ReadCredential(r4.Value)
 	if r5.Error != "" {
-		t.Fatal("Error disclosing credential:", r5.Error)
+		t.Fatal("Error reading credential:", r5.Error)
 	}
 
-	r6 := Verify([]byte(testIssuerPkXml), r5.Value)
+	r6 := DiscloseAllWithTime(r4.Value)
 	if r6.Error != "" {
-		t.Fatal("Error verifying proof:", r6.Error)
+		t.Fatal("Error disclosing credential:", r6.Error)
 	}
 
-	err = checkAttributesJson(attributes, r6.AttributesJson)
+	r7 := Verify(r6.Value)
+	if r7.Error != "" {
+		t.Fatal("Error verifying proof:", r7.Error)
+	}
+
+	err = checkAttributesJson(attributes, r7.AttributesJson)
 	if err != nil {
 		t.Fatal("Error verifying attributes:", err)
 	}
 
-	r7 := DiscloseAllWithTimeQrEncoded([]byte(testIssuerPkXml), r1.Value, r3.Value)
-	if r7.Error != "" {
-		t.Fatal("Error disclosing credential QR encoded:", r7.Error)
-	}
-
-	r8 := VerifyQREncoded([]byte(testIssuerPkXml), r7.Value)
+	r8 := DiscloseAllWithTimeQrEncoded(r2.Value, r4.Value)
 	if r8.Error != "" {
-		t.Fatal("Error verifying QR encoded proof:", r8.Error)
+		t.Fatal("Error disclosing credential QR encoded:", r8.Error)
 	}
 
-	err = checkAttributesJson(attributes, r6.AttributesJson)
+	r9 := VerifyQREncoded(r8.Value)
+	if r9.Error != "" {
+		t.Fatal("Error verifying QR encoded proof:", r9.Error)
+	}
+
+	err = checkAttributesJson(attributes, r7.AttributesJson)
 	if err != nil {
 		t.Fatal("Error verifying attributes from QR encoded proof:", err)
 	}
@@ -111,19 +116,24 @@ func TestExampleISM(t *testing.T) {
 }
 
 func TestExampleQR(t *testing.T) {
+	r1 := LoadIssuerPks([]string{"A"}, [][]byte{testIssuerPkXml})
+	if r1.Error != "" {
+		t.Fatal("Error loading issuer Pks")
+	}
+
 	testQRBase64 := `MIIDdgIEYCpdWjAJAQEAAQH/AQH/AiEA+b9RKorjP3lf217uPb4siUFGSjsunjsS+ZBGd8JrOt8CggEAAqP6ZOXLtwBcQGTACuLZu8o1VB4KOML6QkBW55uXojvDmTSFlIKPYpdwzQJHwEvyOs5sF/VQDCzFU7U4G1un5qBR7WM1ShzohChhweesCUL14cXaZ8NdtLoy5lC6FaMf8SrnGo5I/79X0m0ZBSlY650QlKBl1XfmsXVPLGSphk+WTLK5eXBspyc0zC82BqBN97IZLrrPwDdoR8wyqtchHEAec8D33Rjc8uj4PH6vA2rMnMjn4mH3d7z/SNfUotV6rXosxQH1BC2vkrniWZiWQoTKNpBHw88qs3io0SbpKwhcAyNHdqxyfhxngYGR5W8LGSQolaVXWcmQrZnFCM5wJAI/VFJb9QenhAV5wBTP2POMudouMVNlu6PUv0yIGrnPyNTqXwv4xtzgCKZtS6YVk+ntLwOmS91Ldm9f8ByznybJAoIBkQ/Uut379ldGe2RHi8r8ZLpmpDNefeSin8BzBCpAZDkaKGrjctCmpd0mLDWgAb+A/G7hUOqrfpli3w6/NdjHoCewn3LPMGEYWo9NWmhKtC5KlOKQPPZ5P8lcSZ1B5GdaAuk/cPvzepPsYLz3IbVlK2mWdrXyH+Wo34RFnBy+tTFbHYNbMeWHqTgf0CcnsC5lTZ1cyJ8I1b9yYJx1xA+k8Eir0rgJpGWzMTmQSNuGtO2GtnzLyA9VQ13kHp7gIbrP0LVE7OAOKVtcyQ1jMOmhHZLKhtITUBQlmlGmVIo9BRzEMeStyjZldQIZwzownTFjdH4UYuGgVeLUBIdUT/oi74/Dsq5H7iAk6nXC6gF8Twl2rgjCYh3VxM0275hS3ByBxR3Ewio9gv/1ZaPyBAFMFXhaDWzgnRSkJpHOhb1dQfHM9uRRP75QH24YkZ+vaczmsqAdgYOxQc9SnXpCHq+iZ0vDSFjUaIuTm5g7Eur2g63NWGK41kdfogQAcR6zR83zLN88Dcgkatne3FC6PxtX3e9xMEwCSnrFWkQ0Bmimm3kY3e/hprG8AAAMtfVz9eJnLLp8G25ezw57hyNL6IOEWdgDjv4+Nq3vOm1bnIKod+iV8scpW/yebkabTTuc3qWjMBgCCm5uasbCwmRiaHMCCmJsYmZkcGRobGM=`
 	proofAsn1, err := base64.StdEncoding.DecodeString(testQRBase64)
 	if err != nil {
 		t.Fatal("Error decoding QR base64:", err.Error())
 	}
 
-	result := Verify([]byte(testIssuerPkXml), proofAsn1)
-	if result.Error != "" {
-		t.Fatal("Error verifying proof:", result.Error)
+	r2 := Verify(proofAsn1)
+	if r2.Error != "" {
+		t.Fatal("Error verifying proof:", r2.Error)
 	}
 }
 
-var testIssuerPkXml = `
+var testIssuerPkXml = []byte(`
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <IssuerPublicKey xmlns="http://www.zurich.ibm.com/security/idemix">
    <Counter>0</Counter>
@@ -151,7 +161,7 @@ var testIssuerPkXml = `
       <Epoch length="432000"></Epoch>
    </Features>
 </IssuerPublicKey>
-`
+`)
 
 // This private key is only included for testing purposes
 var testIssuerSkXml = `
