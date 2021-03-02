@@ -3,6 +3,7 @@ package clmobile
 import (
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"github.com/go-errors/errors"
 	"github.com/minvws/nl-covid19-coronatester-ctcl-core/issuer"
 	"github.com/privacybydesign/gabi"
@@ -10,9 +11,9 @@ import (
 )
 
 func TestFlow(t *testing.T) {
-	r1 := LoadIssuerPks([]string{"A"}, [][]byte{testIssuerPkXml})
+	r1 := LoadIssuerPks(annotatedPksJson)
 	if r1.Error != "" {
-		t.Fatal("Error loading issuer Pks")
+		t.Fatal("Error loading issuer Pks:", r1.Error)
 	}
 
 	r2 := GenerateHolderSk()
@@ -116,7 +117,7 @@ func TestExampleISM(t *testing.T) {
 }
 
 func TestExampleQR(t *testing.T) {
-	r1 := LoadIssuerPks([]string{"A"}, [][]byte{testIssuerPkXml})
+	r1 := LoadIssuerPks(annotatedPksJson)
 	if r1.Error != "" {
 		t.Fatal("Error loading issuer Pks")
 	}
@@ -177,3 +178,7 @@ var testIssuerSkXml = `
    </Elements>
 </IssuerPrivateKey>
 `
+
+var annotatedPksJson = []byte(
+	fmt.Sprintf(`[{"id": "FOO", "public_key": "%s"}]`, base64.StdEncoding.EncodeToString(testIssuerPkXml)),
+)

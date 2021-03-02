@@ -3,7 +3,6 @@ package clmobile
 import (
 	"encoding/base64"
 	"encoding/json"
-	"fmt"
 	"github.com/go-errors/errors"
 	"github.com/minvws/nl-covid19-coronatester-ctcl-core/holder"
 	"github.com/minvws/nl-covid19-coronatester-ctcl-core/verifier"
@@ -11,41 +10,50 @@ import (
 	"github.com/privacybydesign/gabi/big"
 )
 
-var issuerPks map[string]*gabi.PublicKey
+var loadedIssuerPks map[string]*gabi.PublicKey
 
 type Result struct {
 	Value []byte
 	Error string
 }
 
-func LoadIssuerPks(issuerPkIds []string, issuerPkXmls [][]byte) *Result {
-	issuerPkLen := len(issuerPkIds)
-	if issuerPkLen != len(issuerPkXmls) {
-		return &Result{nil, errors.Errorf("Amount of public key ids doesn't match amount of XML strings").Error()}
+type AnnotatedPk struct {
+	Id    string `json:"id"`
+	PkXml []byte `json:"public_key"`
+}
+
+func LoadIssuerPks(annotatedPksJson []byte) *Result {
+	// Unmarshal JSON list of keys
+	annotatedPks := make([]AnnotatedPk, 0)
+	err := json.Unmarshal(annotatedPksJson, &annotatedPks)
+	if err != nil {
+		return &Result{nil, errors.WrapPrefix(err, "Could not unmarshal annotated issuer public keys", 0).Error()}
 	}
 
-	issuerPks = map[string]*gabi.PublicKey{}
-
-	for i := 0; i < issuerPkLen; i++ {
-		issuerPkId := issuerPkIds[i]
-		issuerPkXml := issuerPkXmls[i]
-
-		issuerPk, err := gabi.NewPublicKeyFromXML(string(issuerPkXml))
+	// Unmarshal base64 XML-encoded keys
+	// Allow unmarshalling errors to allow for forward-compatibility
+	pks := map[string]*gabi.PublicKey{}
+	for _, annotatedPk := range annotatedPks {
+		pk, err := gabi.NewPublicKeyFromXML(string(annotatedPk.PkXml))
 		if err != nil {
-			errMsg := fmt.Sprintf("Could not unmarshal public key %d", i)
-			return &Result{nil, errors.WrapPrefix(err, errMsg, 0).Error()}
+			continue
 		}
 
-		issuerPks[issuerPkId] = issuerPk
+		pks[annotatedPk.Id] = pk
 	}
 
+	if len(pks) == 0 {
+		return &Result{nil, errors.Errorf("No valid public keys were supplied").Error()}
+	}
+
+	loadedIssuerPks = pks
 	return &Result{nil, ""}
 }
 
 func GenerateHolderSk() *Result {
 	holderSkJson, err := json.Marshal(holder.GenerateHolderSk())
 	if err != nil {
-		return &Result{nil, errors.Errorf("Could not serialize holder secret key").Error()}
+		return &Result{nil, errors.WrapPrefix(err, "Could not serialize holder secret key", 0).Error()}
 	}
 
 	return &Result{holderSkJson, ""}
@@ -68,7 +76,8 @@ func CreateCommitmentMessage(holderSkJson, issuerNonceBase64 []byte) *Result {
 
 	// FIXME: Fork gabi to allow Pk to change at a later stage
 	var issuerPk *gabi.PublicKey
-	for _, issuerPk = range issuerPks {}
+	for _, issuerPk = range loadedIssuerPks {
+	}
 
 	credBuilder, icm := holder.CreateCommitment(issuerPk, issuerNonce, holderSk)
 	dirtyHack = credBuilder // FIXME
@@ -151,7 +160,8 @@ func DiscloseAllWithTime(credJson []byte) *Result {
 	}
 
 	// FIXME: Get Pk out of credential metadata
-	for _, cred.Pk = range issuerPks {}
+	for _, cred.Pk = range loadedIssuerPks {
+	}
 
 	proofAsn1, err := holder.DiscloseAllWithTime(cred)
 	if err != nil {
@@ -179,7 +189,8 @@ func VerifyQREncoded(proofQrEncodedAsn1 []byte) *VerifyResult {
 func Verify(proofAsn1 []byte) *VerifyResult {
 	// FIXME: Get Pk out of credential metadata
 	var issuerPk *gabi.PublicKey
-	for _, issuerPk = range issuerPks {}
+	for _, issuerPk = range loadedIssuerPks {
+	}
 
 	attributes, unixTimeSeconds, err := verifier.Verify(issuerPk, proofAsn1)
 	if err != nil {
