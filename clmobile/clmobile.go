@@ -3,6 +3,7 @@ package clmobile
 import (
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"github.com/go-errors/errors"
 	"github.com/minvws/nl-covid19-coronatester-ctcl-core/holder"
 	"github.com/minvws/nl-covid19-coronatester-ctcl-core/verifier"
@@ -10,9 +11,35 @@ import (
 	"github.com/privacybydesign/gabi/big"
 )
 
+var issuerPks map[string]*gabi.PublicKey
+
 type Result struct {
 	Value []byte
 	Error string
+}
+
+func LoadIssuerPks(issuerPkIds []string, issuerPkXmls [][]byte) *Result {
+	issuerPkLen := len(issuerPkIds)
+	if issuerPkLen != len(issuerPkXmls) {
+		return &Result{nil, errors.Errorf("Amount of public key ids doesn't match amount of XML strings").Error()}
+	}
+
+	issuerPks = map[string]*gabi.PublicKey{}
+
+	for i := 0; i < issuerPkLen; i++ {
+		issuerPkId := issuerPkIds[i]
+		issuerPkXml := issuerPkXmls[i]
+
+		issuerPk, err := gabi.NewPublicKeyFromXML(string(issuerPkXml))
+		if err != nil {
+			errMsg := fmt.Sprintf("Could not unmarshal public key %d", i)
+			return &Result{nil, errors.WrapPrefix(err, errMsg, 0).Error()}
+		}
+
+		issuerPks[issuerPkId] = issuerPk
+	}
+
+	return &Result{nil, ""}
 }
 
 func GenerateHolderSk() *Result {
@@ -27,22 +54,21 @@ func GenerateHolderSk() *Result {
 // TODO: Handle state properly
 var dirtyHack *gabi.CredentialBuilder
 
-func CreateCommitmentMessage(holderSkJson, issuerPkXml, issuerNonceBase64 []byte) *Result {
+func CreateCommitmentMessage(holderSkJson, issuerNonceBase64 []byte) *Result {
 	holderSk := new(big.Int)
 	err := json.Unmarshal(holderSkJson, holderSk)
 	if err != nil {
 		return &Result{nil, errors.WrapPrefix(err, "Could not unmarshal holder sk", 0).Error()}
 	}
 
-	issuerPk, err := gabi.NewPublicKeyFromXML(string(issuerPkXml))
-	if err != nil {
-		return &Result{nil, errors.WrapPrefix(err, "Could not unmarshal issuer public key", 0).Error()}
-	}
-
 	issuerNonce, err := base64DecodeBigInt(issuerNonceBase64)
 	if err != nil {
 		return &Result{nil, errors.WrapPrefix(err, "Could not unmarshal issuer nonce", 0).Error()}
 	}
+
+	// FIXME: Fork gabi to allow Pk to change at a later stage
+	var issuerPk *gabi.PublicKey
+	for _, issuerPk = range issuerPks {}
 
 	credBuilder, icm := holder.CreateCommitment(issuerPk, issuerNonce, holderSk)
 	dirtyHack = credBuilder // FIXME
@@ -108,8 +134,8 @@ func ReadCredential(credJson []byte) *Result {
 	return &Result{attributesJson, ""}
 }
 
-func DiscloseAllWithTimeQrEncoded(issuerPkXml, holderSkJson, credJson []byte) *Result {
-	r := DiscloseAllWithTime(issuerPkXml, credJson)
+func DiscloseAllWithTimeQrEncoded(holderSkJson, credJson []byte) *Result {
+	r := DiscloseAllWithTime(credJson)
 	if r.Error != "" {
 		return r
 	}
@@ -117,19 +143,15 @@ func DiscloseAllWithTimeQrEncoded(issuerPkXml, holderSkJson, credJson []byte) *R
 	return &Result{qrEncode(r.Value), ""}
 }
 
-func DiscloseAllWithTime(issuerPkXml, credJson []byte) *Result {
-	issuerPk, err := gabi.NewPublicKeyFromXML(string(issuerPkXml))
-	if err != nil {
-		return &Result{nil, errors.WrapPrefix(err, "Could not unmarshal issuer public key", 0).Error()}
-	}
-
+func DiscloseAllWithTime(credJson []byte) *Result {
 	cred := new(gabi.Credential)
-	err = json.Unmarshal(credJson, cred)
+	err := json.Unmarshal(credJson, cred)
 	if err != nil {
 		return &Result{nil, errors.WrapPrefix(err, "Could not unmarshal credential", 0).Error()}
 	}
 
-	cred.Pk = issuerPk
+	// FIXME: Get Pk out of credential metadata
+	for _, cred.Pk = range issuerPks {}
 
 	proofAsn1, err := holder.DiscloseAllWithTime(cred)
 	if err != nil {
@@ -145,20 +167,19 @@ type VerifyResult struct {
 	Error           string
 }
 
-func VerifyQREncoded(issuerPkXml, proofQrEncodedAsn1 []byte) *VerifyResult {
+func VerifyQREncoded(proofQrEncodedAsn1 []byte) *VerifyResult {
 	proofAsn1, err := qrDecode(proofQrEncodedAsn1)
 	if err != nil {
 		return &VerifyResult{nil, 0, errors.WrapPrefix(err, "Could not decode QR", 0).Error()}
 	}
 
-	return Verify(issuerPkXml, proofAsn1)
+	return Verify(proofAsn1)
 }
 
-func Verify(issuerPkXml, proofAsn1 []byte) *VerifyResult {
-	issuerPk, err := gabi.NewPublicKeyFromXML(string(issuerPkXml))
-	if err != nil {
-		return &VerifyResult{nil, 0, errors.WrapPrefix(err, "Could not unmarshal issuer public key", 0).Error()}
-	}
+func Verify(proofAsn1 []byte) *VerifyResult {
+	// FIXME: Get Pk out of credential metadata
+	var issuerPk *gabi.PublicKey
+	for _, issuerPk = range issuerPks {}
 
 	attributes, unixTimeSeconds, err := verifier.Verify(issuerPk, proofAsn1)
 	if err != nil {
