@@ -11,6 +11,7 @@ import (
 )
 
 var loadedIssuerPks map[string]*gabi.PublicKey
+var HasLoadedIssuerPks bool = false
 
 type Result struct {
 	Value []byte
@@ -47,6 +48,8 @@ func LoadIssuerPks(annotatedPksJson []byte) *Result {
 	}
 
 	loadedIssuerPks = pks
+	HasLoadedIssuerPks = true
+
 	return &Result{nil, ""}
 }
 

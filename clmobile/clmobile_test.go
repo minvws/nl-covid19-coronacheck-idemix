@@ -11,9 +11,17 @@ import (
 )
 
 func TestFlow(t *testing.T) {
+	if HasLoadedIssuerPks {
+		t.Fatal("HasLoadedIssuerPks flag is incorrectly true")
+	}
+
 	r1 := LoadIssuerPks(annotatedPksJson)
 	if r1.Error != "" {
 		t.Fatal("Error loading issuer Pks:", r1.Error)
+	}
+
+	if !HasLoadedIssuerPks {
+		t.Fatal("HasLoadedIssuerPks flag is incorrectly false")
 	}
 
 	r2 := GenerateHolderSk()
