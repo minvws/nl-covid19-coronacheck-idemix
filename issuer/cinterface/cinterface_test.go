@@ -7,7 +7,14 @@ import (
 func TestIssue(t *testing.T) {
     issuerNonceB64 := `"hgc3oMZzWd/rEcjdpHsNnw=="`
     commitmentsJson := commitments
-    attributesJson := `{"sampleTime":"2021-02-15T12:00:00.0000000Z","testType":"PCR"}`
+    attributesJson := `{
+        "sampleTime":"2021-02-15T12:00:00.0000000Z",
+        "testType":"PCR",
+        "firstNameInitial": "A",
+		"lastNameInitial": "B",
+		"birthDay": "13",
+		"birthMonth": "2"
+    }`
 
     sig := Issue(testIssuerPkXml, testIssuerSkXml, issuerNonceB64, commitmentsJson, attributesJson)
     if sig == nil {

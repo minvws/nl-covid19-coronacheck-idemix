@@ -15,7 +15,14 @@ import (
 var BigOne = big.NewInt(1)
 var GabiSystemParameters = gabi.DefaultSystemParameters[2048]
 
-var AttributeTypes = []string{"testType", "sampleTime"}
+var AttributeTypes = []string{
+	"testType",
+	"sampleTime",
+	"firstNameInitial",
+	"lastNameInitial",
+	"birthDay",
+	"birthMonth",
+}
 
 type ProofSerialization struct {
 	UnixTimeSeconds   int64
