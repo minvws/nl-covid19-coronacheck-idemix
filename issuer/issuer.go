@@ -3,7 +3,7 @@ package issuer
 import "C"
 
 import (
-	"github.com/minvws/nl-covid19-coronatester-ctcl-core/common"
+	"github.com/minvws/nl-covid19-coronacheck-cl-core/common"
 	"github.com/privacybydesign/gabi"
 	"github.com/privacybydesign/gabi/big"
 )

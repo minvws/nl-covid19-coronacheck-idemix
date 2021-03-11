@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/go-errors/errors"
-	"github.com/minvws/nl-covid19-coronatester-ctcl-core/issuer"
+	"github.com/minvws/nl-covid19-coronacheck-cl-core/issuer"
 	"github.com/privacybydesign/gabi"
 	"testing"
 )

@@ -1,4 +1,4 @@
-module github.com/minvws/nl-covid19-coronatester-ctcl-core
+module github.com/minvws/nl-covid19-coronacheck-cl-core
 
 go 1.14
 

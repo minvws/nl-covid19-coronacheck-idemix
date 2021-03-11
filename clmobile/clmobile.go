@@ -4,8 +4,8 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"github.com/go-errors/errors"
-	"github.com/minvws/nl-covid19-coronatester-ctcl-core/holder"
-	"github.com/minvws/nl-covid19-coronatester-ctcl-core/verifier"
+	"github.com/minvws/nl-covid19-coronacheck-cl-core/holder"
+	"github.com/minvws/nl-covid19-coronacheck-cl-core/verifier"
 	"github.com/privacybydesign/gabi"
 	"github.com/privacybydesign/gabi/big"
 )
