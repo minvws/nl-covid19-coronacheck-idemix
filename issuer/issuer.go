@@ -34,7 +34,8 @@ func Issue(issuerPkId, issuerPkXml, issuerSkXml string, issuerNonce *big.Int, at
 
 func issue(issuerPkId string, issuerPk *gabi.PublicKey, issuerSk *gabi.PrivateKey, issuerNonce *big.Int, attributes map[string]string, cmmMsg *gabi.IssueCommitmentMessage) *gabi.IssueSignatureMessage {
 	// Compute attribute values
-	attributeInts, err := common.ComputeAttributes(attributes)
+	byteAttributes := common.StringToByteAttributes(attributes)
+	attributeInts, err := common.ComputeAttributes(byteAttributes)
 	if err != nil {
 		panic("Error during computing attributes: " + err.Error())
 	}

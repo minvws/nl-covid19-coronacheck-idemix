@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/go-errors/errors"
+	"github.com/minvws/nl-covid19-coronacheck-cl-core/common"
 	"github.com/minvws/nl-covid19-coronacheck-cl-core/issuer"
 	"github.com/privacybydesign/gabi"
 	"testing"
@@ -58,7 +59,7 @@ func TestFlow(t *testing.T) {
 
 	ccm := &CreateCredentialMessage{
 		IssueSignatureMessage: ism,
-		Attributes:            attributes,
+		Attributes:            common.StringToByteAttributes(attributes),
 	}
 	ccmJson, _ := json.Marshal(ccm)
 
@@ -122,16 +123,6 @@ func checkAttributesJson(attributes map[string]string, attributesJson []byte) er
 	}
 
 	return nil
-}
-
-func TestExampleISM(t *testing.T) {
-	testISMJson := `{"ism":{"proof":{"c":"iithLgatoyJxcN72l8AFmF0Aa6RQlLt+u9Zize2YGNk=","e_response":"D2kzlkHRV935Z5+c5rhyNKdMpM9yNaMfje3BJMc0YmnG69143j+Cd0ih8Ff6/tLLsr1/bHmIQz3RHK2G6oguPCUMxINeYH8coJtEUaC2d1NXZtVubvQOLQkoB4JbZBXrmNYcx121/A3+dPu58s1hKtKi31rLhDlCBptbjnK1vuQzQ+uGqcPg3Vmh9zvQMPvwBGR0qdz1H7Z3+0soBxuYHQycWQLUyn/QjwvEZW68tZZjZz+bbgInkFcrznZzMtIjcGStCLLhxX1LtXLM9BVs68hAJMoGx/+EIqXDa/ItOGrbN7xtlGnKEU/RezRb2SOHdyiNnH52HQ4UHgDfczZfSg=="},"signature":{"A":"gdFZruPdQq0nyvPAlvtXBty9BVKlc1zBjb4GJCNC/wxUBByKKK6alnuGECPVIM9liFIaKyAksPO/DuE1Lfv08moJQuhPVO6CTfDYTgCs3ABuAw45CjsbuIXtq/w+TJGsy87ulJjFOybIAdvyj2hX0by5ETNCNKe2BcAdEW4qhtuh3F6SBWwIxYcI/fLizUOdXUdodKHRIRdJQ+VI8WTmNeHn8hf9rIa8zPUB4YjwU3VhSo8+JRoVo+KreUnSUPXI7gVA1Zfm3bNXJ4xID3oUHSBdbw7QWypduNnw/Urg/qOTVMeKdrKKRsUWtqt+fnW5nm4p1qfh1UsPk4MHZLpW8w==","e":"EAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABu3AyxqaBXngC8PaIJJL","v":"C92Xn5Ehdh1jLLM0Jgz6bfjuPigRPNnDonnd9rusIZEjRO8A9/+fNJhnqRNLQrH1VPndOCKEQHAjm2zuaBvDM7BDvJPAjD7nQ2D8wV3ITxzLWxz0yhz/1PUijHxXlKsEhZIfSpiVNjgWiTJKV9APL1tZTV1qk5AgEI43Ux4KquuUa1MQPfDY88ggMMrWiKE3m8G2AAF/fIGoga2HYxP1C81ERdCBiBJQbC+4zP04V1mNj4hduHymmbvPOfksssL58wKQXk1lnRFPyQJR0bdH6OstjZfkL5A/YWin5U6Sk5lVAb1ZV+jBC9fulqFKY6qpa3/Jh+IuncTZ7bDFaKYMd5F3KCTv75BhfRTy7gncJFmxdZ8rGKFxk9yKBOyybQppvJ+AmYcNgtsR95KtPfG2ApXynFYFJUR0XOIY4itZHdc7koEAJSE9GGZ76DvzsRBlwKFCRWJnwv+pikNBYHwSWc8=","KeyshareP":null}},"attributes":{"testType":"e556ecd395a1","sampleTime":"2021-01-19T12:03:00+01:00"}}`
-	ccm := new(CreateCredentialMessage)
-
-	err := json.Unmarshal([]byte(testISMJson), ccm)
-	if err != nil {
-		t.Fatal("Error unmarshalling example:", err.Error())
-	}
 }
 
 func TestExampleQR(t *testing.T) {

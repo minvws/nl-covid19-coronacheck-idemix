@@ -95,7 +95,7 @@ func CreateCommitmentMessage(holderSkJson, issuerNonceBase64 []byte) *Result {
 
 type CreateCredentialMessage struct {
 	IssueSignatureMessage *gabi.IssueSignatureMessage `json:"ism"`
-	Attributes            map[string]string           `json:"attributes"`
+	Attributes            map[string][]byte           `json:"attributes"`
 }
 
 func CreateCredential(holderSkJson, ccmJson []byte) *Result {

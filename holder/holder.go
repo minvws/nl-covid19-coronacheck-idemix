@@ -18,7 +18,7 @@ func CreateCommitment(issuerPk *gabi.PublicKey, issuerNonce, holderSk *big.Int) 
 	return credBuilder, icm
 }
 
-func CreateCredential(credBuilder *gabi.CredentialBuilder, ism *gabi.IssueSignatureMessage, attributes map[string]string) (*gabi.Credential, error) {
+func CreateCredential(credBuilder *gabi.CredentialBuilder, ism *gabi.IssueSignatureMessage, attributes map[string][]byte) (*gabi.Credential, error) {
 	cred, err := constructCredential(ism, credBuilder, attributes)
 	if err != nil {
 		return nil, errors.WrapPrefix(err, "Could not construct credential", 0)
@@ -152,7 +152,7 @@ func issuanceProofBuilders(issuerPk *gabi.PublicKey, holderSk *big.Int) (*gabi.C
 	return credBuilder, holderNonce
 }
 
-func constructCredential(ism *gabi.IssueSignatureMessage, credBuilder *gabi.CredentialBuilder, attributes map[string]string) (*gabi.Credential, error) {
+func constructCredential(ism *gabi.IssueSignatureMessage, credBuilder *gabi.CredentialBuilder, attributes map[string][]byte) (*gabi.Credential, error) {
 	attributeInts, err := common.ComputeAttributes(attributes)
 	if err != nil {
 		return nil, err
