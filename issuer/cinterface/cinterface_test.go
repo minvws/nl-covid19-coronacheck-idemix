@@ -18,12 +18,13 @@ func TestIssue(t *testing.T) {
         "birthMonth": "2"
     }`
 
-	sig := Issue(testIssuerPkXml, testIssuerSkXml, issuerNonceB64, commitmentsJson, attributesJson)
+	sig := Issue(testIssuerPkId, testIssuerPkXml, testIssuerSkXml, issuerNonceB64, commitmentsJson, attributesJson)
 	if sig == nil {
 		t.Fatal("Could not issue proof")
 	}
 }
 
+var testIssuerPkId = "testPk"
 var testIssuerPkXml = `
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <IssuerPublicKey xmlns="http://www.zurich.ibm.com/security/idemix">

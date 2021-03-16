@@ -54,7 +54,7 @@ func TestFlow(t *testing.T) {
 		"birthMonth":       "2",
 	}
 
-	ism := issuer.Issue(string(testIssuerPkXml), testIssuerSkXml, issuerNonce, attributes, icm)
+	ism := issuer.Issue(testIssuerPkId, string(testIssuerPkXml), testIssuerSkXml, issuerNonce, attributes, icm)
 
 	ccm := &CreateCredentialMessage{
 		IssueSignatureMessage: ism,
@@ -148,6 +148,7 @@ func TestExampleQR(t *testing.T) {
 	}
 }
 
+var testIssuerPkId = "testPk"
 var testIssuerPkXml = []byte(`
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <IssuerPublicKey xmlns="http://www.zurich.ibm.com/security/idemix">

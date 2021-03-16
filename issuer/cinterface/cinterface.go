@@ -20,7 +20,7 @@ func GenerateIssuerNonceB64() *C.char {
 }
 
 //export Issue
-func Issue(issuerPkXml, issuerSkXml, issuerNonceB64, commitmentsJson, attributesJson string) *C.char {
+func Issue(issuerPkId, issuerPkXml, issuerSkXml, issuerNonceB64, commitmentsJson, attributesJson string) *C.char {
 	defer func() *C.char {
 		if r := recover(); r != nil {
 			errorMessage := fmt.Sprintf("Error: %s", r)
@@ -50,7 +50,7 @@ func Issue(issuerPkXml, issuerSkXml, issuerNonceB64, commitmentsJson, attributes
 		panic("Could not deserialize commitments")
 	}
 
-	sig := issuer.Issue(issuerPkXml, issuerSkXml, issuerNonce, attributes, commitments)
+	sig := issuer.Issue(issuerPkId, issuerPkXml, issuerSkXml, issuerNonce, attributes, commitments)
 	sigBytes, _ := json.Marshal(sig)
 	sigString := string(sigBytes)
 
