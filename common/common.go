@@ -16,6 +16,8 @@ var BigOne = big.NewInt(1)
 var GabiSystemParameters = gabi.DefaultSystemParameters[2048]
 
 var AttributeTypes = []string{
+	"isSpecimen",
+	"isPaperProof",
 	"testType",
 	"sampleTime",
 	"firstNameInitial",

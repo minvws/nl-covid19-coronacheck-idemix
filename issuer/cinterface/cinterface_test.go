@@ -5,21 +5,23 @@ import (
 )
 
 func TestIssue(t *testing.T) {
-    issuerNonceB64 := `"hgc3oMZzWd/rEcjdpHsNnw=="`
-    commitmentsJson := commitments
-    attributesJson := `{
+	issuerNonceB64 := `"hgc3oMZzWd/rEcjdpHsNnw=="`
+	commitmentsJson := commitments
+	attributesJson := `{
+        "isPaperProof": "0",
+        "isSpecimen": "0",
         "sampleTime":"2021-02-15T12:00:00.0000000Z",
         "testType":"PCR",
         "firstNameInitial": "A",
-		"lastNameInitial": "B",
-		"birthDay": "13",
-		"birthMonth": "2"
+        "lastNameInitial": "B",
+        "birthDay": "13",
+        "birthMonth": "2"
     }`
 
-    sig := Issue(testIssuerPkXml, testIssuerSkXml, issuerNonceB64, commitmentsJson, attributesJson)
-    if sig == nil {
-        t.Fatal("Could not issue proof")
-    }
+	sig := Issue(testIssuerPkXml, testIssuerSkXml, issuerNonceB64, commitmentsJson, attributesJson)
+	if sig == nil {
+		t.Fatal("Could not issue proof")
+	}
 }
 
 var testIssuerPkXml = `
