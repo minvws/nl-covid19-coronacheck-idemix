@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"github.com/go-errors/errors"
+	"github.com/minvws/nl-covid19-coronacheck-cl-core/common"
 	"github.com/minvws/nl-covid19-coronacheck-cl-core/holder"
 	"github.com/minvws/nl-covid19-coronacheck-cl-core/verifier"
 	"github.com/privacybydesign/gabi"
@@ -62,8 +63,7 @@ func GenerateHolderSk() *Result {
 	return &Result{holderSkJson, ""}
 }
 
-// TODO: Handle state properly
-var dirtyHack *gabi.CredentialBuilder
+var lastCredBuilder *gabi.CredentialBuilder
 
 func CreateCommitmentMessage(holderSkJson, issuerNonceBase64 []byte) *Result {
 	holderSk := new(big.Int)
@@ -82,8 +82,8 @@ func CreateCommitmentMessage(holderSkJson, issuerNonceBase64 []byte) *Result {
 	for _, issuerPk = range loadedIssuerPks {
 	}
 
-	credBuilder, icm := holder.CreateCommitment(issuerPk, issuerNonce, holderSk)
-	dirtyHack = credBuilder // FIXME
+	var icm *gabi.IssueCommitmentMessage
+	lastCredBuilder, icm = holder.CreateCommitment(issuerPk, issuerNonce, holderSk)
 
 	icmJson, err := json.Marshal(icm)
 	if err != nil {
@@ -93,25 +93,25 @@ func CreateCommitmentMessage(holderSkJson, issuerNonceBase64 []byte) *Result {
 	return &Result{icmJson, ""}
 }
 
-type CreateCredentialMessage struct {
-	IssueSignatureMessage *gabi.IssueSignatureMessage `json:"ism"`
-	Attributes            map[string][]byte           `json:"attributes"`
-}
-
 func CreateCredential(holderSkJson, ccmJson []byte) *Result {
+	credBuilder := lastCredBuilder
+	lastCredBuilder = nil
+
+	if credBuilder == nil {
+		return &Result{nil, errors.Errorf("CreateCommitMessage should be called before CreateCredential").Error()}
+	}
+
 	holderSk := new(big.Int)
 	err := json.Unmarshal(holderSkJson, holderSk)
 	if err != nil {
 		return &Result{nil, errors.WrapPrefix(err, "Could not unmarshal holder sk", 0).Error()}
 	}
 
-	ccm := &CreateCredentialMessage{}
+	ccm := &common.CreateCredentialMessage{}
 	err = json.Unmarshal(ccmJson, ccm)
 	if err != nil {
 		return &Result{nil, errors.WrapPrefix(err, "Could not unmarshal CreateCredentialMessage", 0).Error()}
 	}
-
-	credBuilder := dirtyHack // FIXME
 
 	cred, err := holder.CreateCredential(credBuilder, ccm.IssueSignatureMessage, ccm.Attributes)
 	if err != nil {
@@ -162,11 +162,7 @@ func DiscloseAllWithTime(credJson []byte) *Result {
 		return &Result{nil, errors.WrapPrefix(err, "Could not unmarshal credential", 0).Error()}
 	}
 
-	// FIXME: Get Pk out of credential metadata
-	for _, cred.Pk = range loadedIssuerPks {
-	}
-
-	proofAsn1, err := holder.DiscloseAllWithTime(cred)
+	proofAsn1, err := holder.DiscloseAllWithTime(loadedIssuerPks, cred)
 	if err != nil {
 		return &Result{nil, errors.WrapPrefix(err, "Could not create proof", 0).Error()}
 	}

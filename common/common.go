@@ -26,7 +26,10 @@ var AttributeTypes = []string{
 	"birthMonth",
 }
 
+var ProofSerializationVersion = []byte{0x01, 0x00}
+
 type ProofSerialization struct {
+	Version           []byte
 	UnixTimeSeconds   int64
 	DisclosureChoices []bool
 	C                 *gobig.Int
@@ -35,6 +38,11 @@ type ProofSerialization struct {
 	VResponse         *gobig.Int
 	AResponses        []*gobig.Int
 	ADisclosed        []*gobig.Int
+}
+
+type CreateCredentialMessage struct {
+	IssueSignatureMessage *gabi.IssueSignatureMessage `json:"ism"`
+	Attributes            map[string][]byte           `json:"attributes"`
 }
 
 // RandomBigInt returns a random big integer value in the range
@@ -63,7 +71,7 @@ func StringToByteAttributes(sa map[string]string) map[string][]byte {
 	return ba
 }
 
-func ComputeAttributes(attributes map[string][]byte) ([]*big.Int, error) {
+func ComputeAttributeInts(attributes map[string][]byte) ([]*big.Int, error) {
 	attributeAmount := len(attributes)
 	if attributeAmount != len(AttributeTypes) {
 		return nil, errors.New("Amount of attribute values don't match amount of attribute types")

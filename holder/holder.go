@@ -42,12 +42,12 @@ func ReadCredential(cred *gabi.Credential) (map[string]string, error) {
 	return attributes, nil
 }
 
-func DiscloseAll(cred *gabi.Credential, challenge *big.Int) ([]byte, error) {
-	return Disclose(cred, maximumDisclosureChoices(cred), challenge)
+func DiscloseAll(issuerPks map[string]*gabi.PublicKey, cred *gabi.Credential, challenge *big.Int) ([]byte, error) {
+	return Disclose(issuerPks, cred, maximumDisclosureChoices(cred), challenge)
 }
 
-func DiscloseAllWithTime(cred *gabi.Credential) ([]byte, error) {
-	return DiscloseWithTime(cred, maximumDisclosureChoices(cred))
+func DiscloseAllWithTime(issuerPks map[string]*gabi.PublicKey, cred *gabi.Credential) ([]byte, error) {
+	return DiscloseWithTime(issuerPks, cred, maximumDisclosureChoices(cred))
 }
 
 func maximumDisclosureChoices(cred *gabi.Credential) []bool {
@@ -59,19 +59,23 @@ func maximumDisclosureChoices(cred *gabi.Credential) []bool {
 	return choices
 }
 
-func DiscloseWithTime(cred *gabi.Credential, disclosureChoices []bool) ([]byte, error) {
-	return disclose(cred, disclosureChoices, nil)
+func DiscloseWithTime(issuerPks map[string]*gabi.PublicKey, cred *gabi.Credential, disclosureChoices []bool) ([]byte, error) {
+	return disclose(issuerPks, cred, disclosureChoices, nil)
 }
 
-func Disclose(cred *gabi.Credential, disclosureChoices []bool, challenge *big.Int) ([]byte, error) {
+func Disclose(issuerPks map[string]*gabi.PublicKey, cred *gabi.Credential, disclosureChoices []bool, challenge *big.Int) ([]byte, error) {
 	if challenge == nil {
 		return nil, errors.Errorf("No challenge was provided")
 	}
 
-	return disclose(cred, disclosureChoices, challenge)
+	return disclose(issuerPks, cred, disclosureChoices, challenge)
 }
 
-func disclose(cred *gabi.Credential, disclosureChoices []bool, challenge *big.Int) ([]byte, error) {
+func disclose(issuerPks map[string]*gabi.PublicKey, cred *gabi.Credential, disclosureChoices []bool, challenge *big.Int) ([]byte, error) {
+	// FIXME
+	for _, cred.Pk = range issuerPks {
+	}
+
 	// The first attribute (which is the secret key) can never be disclosed
 	disclosureChoices = append([]bool{false}, disclosureChoices...)
 	if len(disclosureChoices) != len(cred.Attributes) {
@@ -111,6 +115,7 @@ func disclose(cred *gabi.Credential, disclosureChoices []bool, challenge *big.In
 	proof := proofList[0].(*gabi.ProofD)
 
 	// Serialize proof
+	ps.Version = common.ProofSerializationVersion
 	ps.DisclosureChoices = disclosureChoices
 	ps.C = proof.C.Go()
 	ps.A = proof.A.Go()
@@ -153,7 +158,7 @@ func issuanceProofBuilders(issuerPk *gabi.PublicKey, holderSk *big.Int) (*gabi.C
 }
 
 func constructCredential(ism *gabi.IssueSignatureMessage, credBuilder *gabi.CredentialBuilder, attributes map[string][]byte) (*gabi.Credential, error) {
-	attributeInts, err := common.ComputeAttributes(attributes)
+	attributeInts, err := common.ComputeAttributeInts(attributes)
 	if err != nil {
 		return nil, err
 	}
