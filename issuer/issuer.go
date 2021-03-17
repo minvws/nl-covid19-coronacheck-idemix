@@ -18,7 +18,7 @@ func GenerateIssuerNonce() *big.Int {
 	return common.GenerateNonce()
 }
 
-func Issue(issuerPkId, issuerPkXml, issuerSkXml string, issuerNonce *big.Int, attributes map[string]string, cmmMsg *gabi.IssueCommitmentMessage) *gabi.IssueSignatureMessage {
+func Issue(issuerPkId, issuerPkXml, issuerSkXml string, issuerNonce *big.Int, attributes map[string]string, cmmMsg *gabi.IssueCommitmentMessage) *common.CreateCredentialMessage {
 	issuerPk, err := gabi.NewPublicKeyFromXML(issuerPkXml)
 	if err != nil {
 		panic("Could not deserialize issuer public key")
@@ -32,10 +32,10 @@ func Issue(issuerPkId, issuerPkXml, issuerSkXml string, issuerNonce *big.Int, at
 	return issue(issuerPkId, issuerPk, issuerSk, issuerNonce, attributes, cmmMsg)
 }
 
-func issue(issuerPkId string, issuerPk *gabi.PublicKey, issuerSk *gabi.PrivateKey, issuerNonce *big.Int, attributes map[string]string, cmmMsg *gabi.IssueCommitmentMessage) *gabi.IssueSignatureMessage {
+func issue(issuerPkId string, issuerPk *gabi.PublicKey, issuerSk *gabi.PrivateKey, issuerNonce *big.Int, attributes map[string]string, cmmMsg *gabi.IssueCommitmentMessage) *common.CreateCredentialMessage {
 	// Compute attribute values
 	byteAttributes := common.StringToByteAttributes(attributes)
-	attributeInts, err := common.ComputeAttributes(byteAttributes)
+	attributeInts, err := common.ComputeAttributeInts(byteAttributes)
 	if err != nil {
 		panic("Error during computing attributes: " + err.Error())
 	}
@@ -60,5 +60,9 @@ func issue(issuerPkId string, issuerPk *gabi.PublicKey, issuerSk *gabi.PrivateKe
 	if err != nil {
 		panic("Issuance failed: " + err.Error())
 	}
-	return ism
+
+	return &common.CreateCredentialMessage{
+		IssueSignatureMessage: ism,
+		Attributes:            byteAttributes,
+	}
 }
