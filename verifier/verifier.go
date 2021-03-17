@@ -8,7 +8,7 @@ import (
 	"github.com/privacybydesign/gabi/big"
 )
 
-func Verify(issuerPk *gabi.PublicKey, proofAsn1 []byte) (map[string]string, int64, error) {
+func Verify(issuerPks map[string]*gabi.PublicKey, proofAsn1 []byte) (map[string]string, int64, error) {
 	// Deserialize proof
 	ps := &common.ProofSerialization{}
 	_, err := asn1.Unmarshal(proofAsn1, ps)
@@ -16,15 +16,19 @@ func Verify(issuerPk *gabi.PublicKey, proofAsn1 []byte) (map[string]string, int6
 		return nil, 0, errors.Errorf("Could not deserialize proof")
 	}
 
-	// Make sure the amount of disclosure choices match the amount of attributes, plus secret key
-	numAttributes := len(common.AttributeTypes) + 1
+	// Make sure the amount of disclosure choices match the amount of attributes, plus secret key and metadata
+	numAttributes := len(common.AttributeTypes) + 2
 	if len(ps.DisclosureChoices) != numAttributes {
 		return nil, 0, errors.Errorf("Invalid amount of disclosure choices")
 	}
 
-	// Validate that the secret key is not marked as disclosed
+	// Validate that the secret key is not marked as disclosed, and the metadata is marked as disclosed
 	if ps.DisclosureChoices[0] {
-		return nil, 0, errors.Errorf("First attribute should never be disclosed")
+		return nil, 0, errors.Errorf("First attribute (secret key) should never be disclosed")
+	}
+
+	if !ps.DisclosureChoices[1] {
+		return nil, 0, errors.Errorf("Second attribute (metadata) should be disclosed")
 	}
 
 	// Convert the lists of disclosures and non-disclosure responses to a
@@ -51,6 +55,20 @@ func Verify(issuerPk *gabi.PublicKey, proofAsn1 []byte) (map[string]string, int6
 		}
 	}
 
+	// Retrieve the metadata attribute and get the correct public key
+	metadataAttribute := common.DecodeAttributeInt(aDisclosed[1])
+
+	credentialMetadata := &common.CredentialMetadataSerialization{}
+	_, err = asn1.Unmarshal(metadataAttribute, credentialMetadata)
+	if err != nil {
+		return nil, 0, errors.Errorf("Could not unmarshal metadata attribute")
+	}
+
+	issuerPk, ok := issuerPks[credentialMetadata.IssuerPkId]
+	if !ok {
+		return nil, 0, errors.Errorf("Credential public key is unknown")
+	}
+
 	// Create a proofD structure
 	proof := &gabi.ProofD{
 		C:          big.Convert(ps.C),
@@ -75,8 +93,13 @@ func Verify(issuerPk *gabi.PublicKey, proofAsn1 []byte) (map[string]string, int6
 	// Retrieve attribute values
 	attributes := make(map[string]string)
 	for disclosureIndex, d := range aDisclosed {
-		attributeType := common.AttributeTypes[disclosureIndex-1]
-		attributes[attributeType] = common.DecodeAttributeInt(d)
+		// Exclude metadata attribute
+		if disclosureIndex == 1 {
+			continue
+		}
+
+		attributeType := common.AttributeTypes[disclosureIndex-2]
+		attributes[attributeType] = string(common.DecodeAttributeInt(d))
 	}
 
 	return attributes, ps.UnixTimeSeconds, nil

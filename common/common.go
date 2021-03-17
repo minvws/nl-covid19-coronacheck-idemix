@@ -15,6 +15,9 @@ import (
 var BigOne = big.NewInt(1)
 var GabiSystemParameters = gabi.DefaultSystemParameters[2048]
 
+var ProofSerializationVersion = []byte{0x00, 0x01, 'N', 'L'}
+var CredentialVersion = []byte{1}
+
 var AttributeTypes = []string{
 	"isSpecimen",
 	"isPaperProof",
@@ -26,7 +29,15 @@ var AttributeTypes = []string{
 	"birthMonth",
 }
 
-var ProofSerializationVersion = []byte{0x01, 0x00}
+type CredentialMetadataSerialization struct {
+	CredentialVersion []byte
+	IssuerPkId        string
+}
+
+type NonceSerialization struct {
+	Nonce      *gobig.Int
+	IssuerPkId string
+}
 
 type ProofSerialization struct {
 	Version           []byte
@@ -42,7 +53,7 @@ type ProofSerialization struct {
 
 type CreateCredentialMessage struct {
 	IssueSignatureMessage *gabi.IssueSignatureMessage `json:"ism"`
-	Attributes            map[string][]byte           `json:"attributes"`
+	Attributes            [][]byte                    `json:"attributes"`
 }
 
 // RandomBigInt returns a random big integer value in the range
@@ -62,37 +73,16 @@ func GenerateNonce() *big.Int {
 	return RandomBigInt(GabiSystemParameters.Lstatzk)
 }
 
-func StringToByteAttributes(sa map[string]string) map[string][]byte {
-	ba := map[string][]byte{}
-	for k, v := range sa {
-		ba[k] = []byte(v)
-	}
-
-	return ba
-}
-
-func ComputeAttributeInts(attributes map[string][]byte) ([]*big.Int, error) {
+func ComputeAttributeInts(attributes [][]byte) ([]*big.Int, error) {
+	// The amount of attributes including the first metadata attribute
 	attributeAmount := len(attributes)
-	if attributeAmount != len(AttributeTypes) {
+	if attributeAmount != len(AttributeTypes)+1 {
 		return nil, errors.New("Amount of attribute values don't match amount of attribute types")
 	}
 
-	// Map map to list of attributes in the correct order
-	attributeValues := make([][]byte, attributeAmount)
-	for i := 0; i < attributeAmount; i++ {
-		attributeType := AttributeTypes[i]
-
-		v, ok := attributes[attributeType]
-		if !ok {
-			return nil, errors.Errorf("Required attribute %s was not supplied", attributeType)
-		}
-
-		attributeValues[i] = v
-	}
-
 	// Compute attributes
-	attrs := make([]*big.Int, len(attributeValues))
-	for i, val := range attributeValues {
+	attrs := make([]*big.Int, attributeAmount)
+	for i, val := range attributes {
 		attrs[i] = new(big.Int)
 		attrs[i].SetBytes(val)
 
@@ -104,15 +94,15 @@ func ComputeAttributeInts(attributes map[string][]byte) ([]*big.Int, error) {
 	return attrs, nil
 }
 
-func DecodeAttributeInt(a *big.Int) string {
+func DecodeAttributeInt(a *big.Int) []byte {
 	attributeInt := new(big.Int).Set(a)
 
 	if attributeInt.Bit(0) == 0 {
 		// TODO: Decide if and how to support optional attributes
-		return ""
+		return []byte{}
 	} else {
 		attributeInt.Rsh(attributeInt, 1)
-		return string(attributeInt.Bytes())
+		return attributeInt.Bytes()
 	}
 }
 
