@@ -18,8 +18,8 @@ func CreateCommitment(issuerPk *gabi.PublicKey, issuerNonce, holderSk *big.Int) 
 	return credBuilder, icm
 }
 
-func CreateCredential(credBuilder *gabi.CredentialBuilder, ism *gabi.IssueSignatureMessage, attributes map[string][]byte) (*gabi.Credential, error) {
-	cred, err := constructCredential(ism, credBuilder, attributes)
+func CreateCredential(credBuilder *gabi.CredentialBuilder, ccm *common.CreateCredentialMessage) (*gabi.Credential, error) {
+	cred, err := constructCredential(credBuilder, ccm)
 	if err != nil {
 		return nil, errors.WrapPrefix(err, "Could not construct credential", 0)
 	}
@@ -28,7 +28,7 @@ func CreateCredential(credBuilder *gabi.CredentialBuilder, ism *gabi.IssueSignat
 }
 
 func ReadCredential(cred *gabi.Credential) (map[string]string, error) {
-	attributeAmount := len(cred.Attributes) - 1
+	attributeAmount := len(cred.Attributes) - 2
 	if attributeAmount != len(common.AttributeTypes) {
 		return nil, errors.Errorf("Unexpected amount of attributes in credential")
 	}
@@ -36,7 +36,7 @@ func ReadCredential(cred *gabi.Credential) (map[string]string, error) {
 	attributes := make(map[string]string)
 	for i := 0; i < attributeAmount; i++ {
 		attributeType := common.AttributeTypes[i]
-		attributes[attributeType] = common.DecodeAttributeInt(cred.Attributes[i+1])
+		attributes[attributeType] = string(common.DecodeAttributeInt(cred.Attributes[i+2]))
 	}
 
 	return attributes, nil
@@ -51,7 +51,7 @@ func DiscloseAllWithTime(issuerPks map[string]*gabi.PublicKey, cred *gabi.Creden
 }
 
 func maximumDisclosureChoices(cred *gabi.Credential) []bool {
-	choices := make([]bool, len(cred.Attributes)-1)
+	choices := make([]bool, len(cred.Attributes)-2)
 	for i := range choices {
 		choices[i] = true
 	}
@@ -72,14 +72,28 @@ func Disclose(issuerPks map[string]*gabi.PublicKey, cred *gabi.Credential, discl
 }
 
 func disclose(issuerPks map[string]*gabi.PublicKey, cred *gabi.Credential, disclosureChoices []bool, challenge *big.Int) ([]byte, error) {
-	// FIXME
-	for _, cred.Pk = range issuerPks {
+	// The first attribute (which is the secret key) can never be disclosed
+	// The second attribute (which is the metadata attribute) is always disclosed
+	disclosureChoices = append([]bool{false, true}, disclosureChoices...)
+
+	attributesAmount := len(cred.Attributes)
+	if len(disclosureChoices) != attributesAmount || attributesAmount < 2 {
+		return nil, errors.Errorf("Invalid amount of disclosure choices or credential attributes")
 	}
 
-	// The first attribute (which is the secret key) can never be disclosed
-	disclosureChoices = append([]bool{false}, disclosureChoices...)
-	if len(disclosureChoices) != len(cred.Attributes) {
-		return nil, errors.Errorf("Invalid amount of disclosure choices")
+	// Retrieve the public key from the credential metadata
+	metadataAttributeBytes := []byte(common.DecodeAttributeInt(cred.Attributes[1]))
+
+	credentialMetadata := &common.CredentialMetadataSerialization{}
+	_, err := asn1.Unmarshal(metadataAttributeBytes, credentialMetadata)
+	if err != nil {
+		return nil, errors.Errorf("Could not unmarshal credential metadata")
+	}
+
+	var ok bool
+	cred.Pk, ok = issuerPks[credentialMetadata.IssuerPkId]
+	if !ok {
+		return nil, errors.Errorf("No public key known for this credential")
 	}
 
 	// Calculate indexes of disclosed attributes
@@ -157,13 +171,13 @@ func issuanceProofBuilders(issuerPk *gabi.PublicKey, holderSk *big.Int) (*gabi.C
 	return credBuilder, holderNonce
 }
 
-func constructCredential(ism *gabi.IssueSignatureMessage, credBuilder *gabi.CredentialBuilder, attributes map[string][]byte) (*gabi.Credential, error) {
-	attributeInts, err := common.ComputeAttributeInts(attributes)
+func constructCredential(credBuilder *gabi.CredentialBuilder, ccm *common.CreateCredentialMessage) (*gabi.Credential, error) {
+	attributeInts, err := common.ComputeAttributeInts(ccm.Attributes)
 	if err != nil {
 		return nil, err
 	}
 
-	cred, err := credBuilder.ConstructCredential(ism, attributeInts)
+	cred, err := credBuilder.ConstructCredential(ccm.IssueSignatureMessage, attributeInts)
 	if err != nil {
 		return nil, err
 	}

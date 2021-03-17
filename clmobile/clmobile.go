@@ -1,6 +1,7 @@
 package clmobile
 
 import (
+	"encoding/asn1"
 	"encoding/base64"
 	"encoding/json"
 	"github.com/go-errors/errors"
@@ -65,25 +66,31 @@ func GenerateHolderSk() *Result {
 
 var lastCredBuilder *gabi.CredentialBuilder
 
-func CreateCommitmentMessage(holderSkJson, issuerNonceBase64 []byte) *Result {
+func CreateCommitmentMessage(holderSkJson, issuerNonceMessageBase64 []byte) *Result {
 	holderSk := new(big.Int)
 	err := json.Unmarshal(holderSkJson, holderSk)
 	if err != nil {
 		return &Result{nil, errors.WrapPrefix(err, "Could not unmarshal holder sk", 0).Error()}
 	}
 
-	issuerNonce, err := base64DecodeBigInt(issuerNonceBase64)
+	issuerNonceMessageBytes, err := base64.StdEncoding.DecodeString(string(issuerNonceMessageBase64))
 	if err != nil {
-		return &Result{nil, errors.WrapPrefix(err, "Could not unmarshal issuer nonce", 0).Error()}
+		return &Result{nil, errors.WrapPrefix(err, "Could not base64 unmarshal issuer nonce message", 0).Error()}
 	}
 
-	// FIXME: Fork gabi to allow Pk to change at a later stage
-	var issuerPk *gabi.PublicKey
-	for _, issuerPk = range loadedIssuerPks {
+	issuerNonceMessage := &common.NonceSerialization{}
+	_, err = asn1.Unmarshal(issuerNonceMessageBytes, issuerNonceMessage)
+	if err != nil {
+		return &Result{nil, errors.WrapPrefix(err, "Could not asn1 unmarshal issuer nonce message", 0).Error()}
+	}
+
+	issuerPk, ok := loadedIssuerPks[issuerNonceMessage.IssuerPkId]
+	if !ok {
+		return &Result{nil, errors.Errorf("Public key chosen by issuer is unknown").Error()}
 	}
 
 	var icm *gabi.IssueCommitmentMessage
-	lastCredBuilder, icm = holder.CreateCommitment(issuerPk, issuerNonce, holderSk)
+	lastCredBuilder, icm = holder.CreateCommitment(issuerPk, big.Convert(issuerNonceMessage.Nonce), holderSk)
 
 	icmJson, err := json.Marshal(icm)
 	if err != nil {
@@ -113,7 +120,7 @@ func CreateCredential(holderSkJson, ccmJson []byte) *Result {
 		return &Result{nil, errors.WrapPrefix(err, "Could not unmarshal CreateCredentialMessage", 0).Error()}
 	}
 
-	cred, err := holder.CreateCredential(credBuilder, ccm.IssueSignatureMessage, ccm.Attributes)
+	cred, err := holder.CreateCredential(credBuilder, ccm)
 	if err != nil {
 		return &Result{nil, errors.WrapPrefix(err, "Could not create credential", 0).Error()}
 	}
@@ -186,12 +193,7 @@ func VerifyQREncoded(proofQrEncodedAsn1 []byte) *VerifyResult {
 }
 
 func Verify(proofAsn1 []byte) *VerifyResult {
-	// FIXME: Get Pk out of credential metadata
-	var issuerPk *gabi.PublicKey
-	for _, issuerPk = range loadedIssuerPks {
-	}
-
-	attributes, unixTimeSeconds, err := verifier.Verify(issuerPk, proofAsn1)
+	attributes, unixTimeSeconds, err := verifier.Verify(loadedIssuerPks, proofAsn1)
 	if err != nil {
 		return &VerifyResult{nil, 0, errors.WrapPrefix(err, "Could not verify proof", 0).Error()}
 	}
@@ -202,17 +204,4 @@ func Verify(proofAsn1 []byte) *VerifyResult {
 	}
 
 	return &VerifyResult{attributesJson, unixTimeSeconds, ""}
-}
-
-func base64DecodeBigInt(b64 []byte) (*big.Int, error) {
-	bts := make([]byte, base64.StdEncoding.DecodedLen(len(b64)))
-	n, err := base64.StdEncoding.Decode(bts, b64)
-	if err != nil {
-		return nil, errors.WrapPrefix(err, "Could not decode bigint", 0)
-	}
-
-	i := new(big.Int)
-	i.SetBytes(bts[0:n])
-
-	return i, nil
 }

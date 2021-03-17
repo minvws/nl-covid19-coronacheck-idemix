@@ -2,25 +2,21 @@ package main
 
 import "C"
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"github.com/minvws/nl-covid19-coronacheck-cl-core/issuer"
 	"github.com/privacybydesign/gabi"
-	"github.com/privacybydesign/gabi/big"
 )
 
 //export GenerateIssuerNonceB64
-func GenerateIssuerNonceB64() *C.char {
-	issuerNonceB64, err := json.Marshal(issuer.GenerateIssuerNonce())
-	if err != nil {
-		panic("Could not serialize issuer nonce")
-	}
-
-	return C.CString(string(issuerNonceB64))
+func GenerateIssuerNonceB64(issuerPkId string) *C.char {
+	issuerNonceB64 := base64.StdEncoding.EncodeToString(issuer.GenerateIssuerNonceMessage(issuerPkId))
+	return C.CString(issuerNonceB64)
 }
 
 //export Issue
-func Issue(issuerPkId, issuerPkXml, issuerSkXml, issuerNonceB64, commitmentsJson, attributesJson string) *C.char {
+func Issue(issuerPkId, issuerPkXml, issuerSkXml, issuerNonceMessageB64, commitmentsJson, attributesJson string) *C.char {
 	defer func() *C.char {
 		if r := recover(); r != nil {
 			errorMessage := fmt.Sprintf("Error: %s", r)
@@ -30,10 +26,9 @@ func Issue(issuerPkId, issuerPkXml, issuerSkXml, issuerNonceB64, commitmentsJson
 		}
 	}()
 
-	issuerNonce := new(big.Int)
-	err := issuerNonce.UnmarshalJSON([]byte(issuerNonceB64))
+	issuerNonceMessage, err := base64.StdEncoding.DecodeString(issuerNonceMessageB64)
 	if err != nil {
-		panic("Could not deserialize issuerNonce")
+		panic("Could not deserialize issuerNonceMessage")
 	}
 
 	// Attributes
@@ -50,7 +45,7 @@ func Issue(issuerPkId, issuerPkXml, issuerSkXml, issuerNonceB64, commitmentsJson
 		panic("Could not deserialize commitments")
 	}
 
-	sig := issuer.Issue(issuerPkId, issuerPkXml, issuerSkXml, issuerNonce, attributes, commitments)
+	sig := issuer.Issue(issuerPkId, issuerPkXml, issuerSkXml, issuerNonceMessage, attributes, commitments)
 	sigBytes, _ := json.Marshal(sig)
 	sigString := string(sigBytes)
 

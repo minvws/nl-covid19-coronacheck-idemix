@@ -1,11 +1,14 @@
 package main
 
 import (
+	"encoding/base64"
+	"github.com/minvws/nl-covid19-coronacheck-cl-core/issuer"
 	"testing"
 )
 
 func TestIssue(t *testing.T) {
-	issuerNonceB64 := `"hgc3oMZzWd/rEcjdpHsNnw=="`
+	issuerNonceB64 := base64.StdEncoding.EncodeToString(issuer.GenerateIssuerNonceMessage("testPk"))
+
 	commitmentsJson := commitments
 	attributesJson := `{
         "isPaperProof": "0",
