@@ -1,4 +1,4 @@
-package clmobile
+package common
 
 import (
 	"github.com/go-errors/errors"
@@ -31,9 +31,9 @@ var benchmarkBytes = genBytes()
 
 func TestQrEncodeDecode(t *testing.T) {
 	input := genBytes()
-	encoded := qrEncode(input)
+	encoded := QrEncode(input)
 
-	decoded, err := qrDecode(encoded)
+	decoded, err := QrDecode(encoded)
 	if err != nil {
 		t.Fatal(err.Error())
 	}
@@ -46,9 +46,9 @@ func TestQrEncodeDecode(t *testing.T) {
 
 func TestQrEncodeDecodeAlternative(t *testing.T) {
 	input := genBytes()
-	encoded := qrEncodeAlternative(input)
+	encoded := QrEncodeAlternative(input)
 
-	decoded, err := qrDecodeAlternative(encoded)
+	decoded, err := QrDecodeAlternative(encoded)
 	if err != nil {
 		t.Fatal(err.Error())
 	}
@@ -61,8 +61,8 @@ func TestQrEncodeDecodeAlternative(t *testing.T) {
 
 func TestQRImplementationCorrespondence(t *testing.T) {
 	input := genBytes()
-	e1 := qrEncode(input)
-	e2 := qrEncodeAlternative(input)
+	e1 := QrEncode(input)
+	e2 := QrEncodeAlternative(input)
 
 	err := bytesMatch(e1, e2)
 	if err != nil {
@@ -72,16 +72,16 @@ func TestQRImplementationCorrespondence(t *testing.T) {
 
 func BenchmarkQREncode(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		qrEncode(benchmarkBytes)
+		QrEncode(benchmarkBytes)
 	}
 }
 
 func BenchmarkQRDecode(b *testing.B) {
-	encoded := qrEncode(benchmarkBytes)
+	encoded := QrEncode(benchmarkBytes)
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		_, err := qrDecode(encoded)
+		_, err := QrDecode(encoded)
 		if err != nil {
 			b.FailNow()
 		}
@@ -90,16 +90,16 @@ func BenchmarkQRDecode(b *testing.B) {
 
 func BenchmarkQREncodeAlternative(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		qrEncodeAlternative(benchmarkBytes)
+		QrEncodeAlternative(benchmarkBytes)
 	}
 }
 
 func BenchmarkQRDecodeAlternative(b *testing.B) {
-	encoded := qrEncode(benchmarkBytes)
+	encoded := QrEncode(benchmarkBytes)
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		_, err := qrDecodeAlternative(encoded)
+		_, err := QrDecodeAlternative(encoded)
 		if err != nil {
 			b.FailNow()
 		}

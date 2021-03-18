@@ -1,4 +1,4 @@
-package clmobile
+package common
 
 import (
 	"bytes"
@@ -30,7 +30,7 @@ func ensureLookups() {
 	}
 }
 
-func qrEncode(input []byte) []byte {
+func QrEncode(input []byte) []byte {
 	ensureLookups()
 
 	goEncoded := []byte(new(gobig.Int).SetBytes(input).Text(45))
@@ -44,7 +44,7 @@ func qrEncode(input []byte) []byte {
 	return qrEncoded
 }
 
-func qrDecode(qrEncodedInput []byte) ([]byte, error) {
+func QrDecode(qrEncodedInput []byte) ([]byte, error) {
 	ensureLookups()
 
 	inputLen := len(qrEncodedInput)
@@ -67,7 +67,7 @@ func qrDecode(qrEncodedInput []byte) ([]byte, error) {
 
 var bigQrCharsetLen = gobig.NewInt(int64(qrCharsetLen))
 
-func qrEncodeAlternative(input []byte) []byte {
+func QrEncodeAlternative(input []byte) []byte {
 	estOutputLen := int(float64(len(input))*1.4568) + 1
 	output := make([]byte, 0, estOutputLen)
 
@@ -82,7 +82,7 @@ func qrEncodeAlternative(input []byte) []byte {
 	return reverseByteSlice(output)
 }
 
-func qrDecodeAlternative(input []byte) ([]byte, error) {
+func QrDecodeAlternative(input []byte) ([]byte, error) {
 	inputLength := len(input)
 	result := gobig.NewInt(0)
 

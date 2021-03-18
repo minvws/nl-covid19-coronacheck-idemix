@@ -10,6 +10,11 @@ import (
 	"github.com/privacybydesign/gabi/big"
 )
 
+type IssuerKeypair struct {
+	       Pk *gabi.PublicKey
+	       Sk *gabi.PrivateKey
+	}
+
 type IssuanceSession struct {
 	SessionId       int
 	Nonce           *big.Int
@@ -29,21 +34,7 @@ func GenerateIssuerNonceMessage(issuerPkId string) []byte {
 	return res
 }
 
-func Issue(issuerPkId, issuerPkXml, issuerSkXml string, issuerNonceMessage []byte, attributes map[string]string, cmmMsg *gabi.IssueCommitmentMessage) *common.CreateCredentialMessage {
-	issuerPk, err := gabi.NewPublicKeyFromXML(issuerPkXml)
-	if err != nil {
-		panic("Could not deserialize issuer public key")
-	}
-
-	issuerSk, err := gabi.NewPrivateKeyFromXML(issuerSkXml, false)
-	if err != nil {
-		panic("Could not deserialize issuer private key")
-	}
-
-	return issue(issuerPkId, issuerPk, issuerSk, issuerNonceMessage, attributes, cmmMsg)
-}
-
-func issue(issuerPkId string, issuerPk *gabi.PublicKey, issuerSk *gabi.PrivateKey, issuerNonceMessage []byte, attributes map[string]string, cmmMsg *gabi.IssueCommitmentMessage) *common.CreateCredentialMessage {
+func Issue(issuerPkId string, issuerKeypair IssuerKeypair, issuerNonce *big.Int, attributes map[string]string, cmmMsg *gabi.IssueCommitmentMessage) *common.CreateCredentialMessage {
 	// Construct metadata attribute
 	metadataAttribute, err := asn1.Marshal(common.CredentialMetadataSerialization{
 		CredentialVersion: common.CredentialVersion,
@@ -78,7 +69,7 @@ func issue(issuerPkId string, issuerPk *gabi.PublicKey, issuerSk *gabi.PrivateKe
 	}
 
 	// Instantiate issuer
-	issuer := gabi.NewIssuer(issuerSk, issuerPk, common.BigOne)
+	issuer := gabi.NewIssuer(issuerKeypair.Sk, issuerKeypair.Pk, common.BigOne)
 
 	// TODO: Verify commitment proofs against issuerNonce
 

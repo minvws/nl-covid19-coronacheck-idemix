@@ -82,7 +82,7 @@ func disclose(issuerPks map[string]*gabi.PublicKey, cred *gabi.Credential, discl
 	}
 
 	// Retrieve the public key from the credential metadata
-	metadataAttributeBytes := []byte(common.DecodeAttributeInt(cred.Attributes[1]))
+	metadataAttributeBytes := common.DecodeAttributeInt(cred.Attributes[1])
 
 	credentialMetadata := &common.CredentialMetadataSerialization{}
 	_, err := asn1.Unmarshal(metadataAttributeBytes, credentialMetadata)

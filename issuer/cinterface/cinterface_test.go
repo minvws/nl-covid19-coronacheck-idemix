@@ -2,7 +2,9 @@ package main
 
 import (
 	"encoding/base64"
+	"fmt"
 	"github.com/minvws/nl-covid19-coronacheck-cl-core/issuer"
+	"strings"
 	"testing"
 )
 
@@ -13,7 +15,7 @@ func TestIssue(t *testing.T) {
 	attributesJson := `{
         "isPaperProof": "0",
         "isSpecimen": "0",
-        "sampleTime":"2021-02-15T12:00:00.0000000Z",
+        "sampleTime":"1616064074",
         "testType":"PCR",
         "firstNameInitial": "A",
         "lastNameInitial": "B",
@@ -21,13 +23,30 @@ func TestIssue(t *testing.T) {
         "birthMonth": "2"
     }`
 
-	sig := Issue(testIssuerPkId, testIssuerPkXml, testIssuerSkXml, issuerNonceB64, commitmentsJson, attributesJson)
-	if sig == nil {
-		t.Fatal("Could not issue proof")
+	err := loadIssuerKeypair(testIssuerKeyId, testIssuerPkXml, testIssuerSkXml)
+	if isError(err) {
+		fmt.Println(fmt.Sprint(err))
+		t.Fatal(fmt.Sprint(err))
 	}
+
+	res := issue(testIssuerKeyId, issuerNonceB64, commitmentsJson, attributesJson)
+	if isError(res) {
+		t.Fatal("Could not issue proof: " +	res)
+	}
+
+	res2 := issueStaticDisclosureQR(testIssuerKeyId, attributesJson)
+	if isError(res) {
+		t.Fatal("Could not issuer static disclosure QR: " + res2)
+	}
+
+	fmt.Println(res2)
 }
 
-var testIssuerPkId = "testPk"
+func isError(str string) bool {
+	return strings.Index(str, "Error") == 0
+}
+
+var testIssuerKeyId = "testPk"
 var testIssuerPkXml = `
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <IssuerPublicKey xmlns="http://www.zurich.ibm.com/security/idemix">

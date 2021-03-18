@@ -1,12 +1,15 @@
 package clmobile
 
 import (
+	"encoding/asn1"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"github.com/go-errors/errors"
+	"github.com/minvws/nl-covid19-coronacheck-cl-core/common"
 	"github.com/minvws/nl-covid19-coronacheck-cl-core/issuer"
 	"github.com/privacybydesign/gabi"
+	"github.com/privacybydesign/gabi/big"
 	"testing"
 )
 
@@ -29,8 +32,14 @@ func TestFlow(t *testing.T) {
 		t.Fatal("Error in GenerateHolderSk:", r2.Error)
 	}
 
-	issuerNonceMessage := issuer.GenerateIssuerNonceMessage(testIssuerPkId)
-	issuerNonceMessageBase64 := []byte(base64.StdEncoding.EncodeToString(issuerNonceMessage))
+	issuerNonceMessageBytes := issuer.GenerateIssuerNonceMessage(testIssuerPkId)
+	issuerNonceMessageBase64 := []byte(base64.StdEncoding.EncodeToString(issuerNonceMessageBytes))
+
+	var issuerNonceMessage common.NonceSerialization
+	_, err := asn1.Unmarshal(issuerNonceMessageBytes, &issuerNonceMessage)
+	if err != nil {
+		t.Fatal("Error unmarshalling issuerNonceMessage")
+	}
 
 	r3 := CreateCommitmentMessage(r2.Value, issuerNonceMessageBase64)
 	if r3.Error != "" {
@@ -38,7 +47,7 @@ func TestFlow(t *testing.T) {
 	}
 
 	icm := new(gabi.IssueCommitmentMessage)
-	err := json.Unmarshal(r3.Value, icm)
+	err = json.Unmarshal(r3.Value, icm)
 	if err != nil {
 		t.Fatal("Error serializing ICM")
 	}
@@ -54,7 +63,22 @@ func TestFlow(t *testing.T) {
 		"birthMonth":       "2",
 	}
 
-	ccm := issuer.Issue(testIssuerPkId, string(testIssuerPkXml), testIssuerSkXml, issuerNonceMessageBase64, attributes, icm)
+	var issuerPk *gabi.PublicKey
+	issuerPk, err = gabi.NewPublicKeyFromXML(string(testIssuerPkXml))
+	if err != nil {
+		t.Fatal("Error unmarshalling issuer pk")
+	}
+
+	var issuerSk *gabi.PrivateKey
+	issuerSk, err = gabi.NewPrivateKeyFromXML(testIssuerSkXml, false)
+	if err != nil {
+		t.Fatal("Error unmarshalling issuer sk")
+	}
+
+	issuerKeypair := issuer.IssuerKeypair{Pk: issuerPk, Sk: issuerSk}
+	issuerNonce := big.Convert(issuerNonceMessage.Nonce)
+
+	ccm := issuer.Issue(testIssuerPkId, issuerKeypair, issuerNonce, attributes, icm)
 	ccmJson, _ := json.Marshal(ccm)
 
 	r4 := CreateCredential(r2.Value, ccmJson)

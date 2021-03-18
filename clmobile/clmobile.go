@@ -159,7 +159,7 @@ func DiscloseAllWithTimeQrEncoded(holderSkJson, credJson []byte) *Result {
 		return r
 	}
 
-	return &Result{qrEncode(r.Value), ""}
+	return &Result{common.QrEncode(r.Value), ""}
 }
 
 func DiscloseAllWithTime(credJson []byte) *Result {
@@ -184,7 +184,7 @@ type VerifyResult struct {
 }
 
 func VerifyQREncoded(proofQrEncodedAsn1 []byte) *VerifyResult {
-	proofAsn1, err := qrDecode(proofQrEncodedAsn1)
+	proofAsn1, err := common.QrDecode(proofQrEncodedAsn1)
 	if err != nil {
 		return &VerifyResult{nil, 0, errors.WrapPrefix(err, "Could not decode QR", 0).Error()}
 	}
