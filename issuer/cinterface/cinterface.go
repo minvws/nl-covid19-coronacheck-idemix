@@ -1,11 +1,14 @@
 package main
 
+// typedef struct {
+//   char* value;
+//   char* error;
+// } Result;
 import "C"
 import (
 	"encoding/asn1"
 	"encoding/base64"
 	"encoding/json"
-	"fmt"
 	"github.com/go-errors/errors"
 	"github.com/minvws/nl-covid19-coronacheck-cl-core/common"
 	"github.com/minvws/nl-covid19-coronacheck-cl-core/holder"
@@ -17,20 +20,20 @@ import (
 var issuerKeypairs = map[string]issuer.IssuerKeypair{}
 
 //export LoadIssuerKeypair
-func LoadIssuerKeypair(issuerKeyId, issuerPkXml, issuerSkXml string) *C.char {
-	res := loadIssuerKeypair(issuerKeyId, issuerPkXml, issuerSkXml)
-	return C.CString(res)
+func LoadIssuerKeypair(issuerKeyId, issuerPkXml, issuerSkXml string) *C.Result {
+	err := loadIssuerKeypair(issuerKeyId, issuerPkXml, issuerSkXml)
+	return newResult(nil, err)
 }
 
-func loadIssuerKeypair(issuerKeyId, issuerPkXml, issuerSkXml string) string {
+func loadIssuerKeypair(issuerKeyId, issuerPkXml, issuerSkXml string) error {
 	issuerPk, err := gabi.NewPublicKeyFromXML(issuerPkXml)
 	if err != nil {
-		return formatError(errors.WrapPrefix(err, "Could not deserialize issuer public key", 0))
+		return errors.WrapPrefix(err, "Could not deserialize issuer public key", 0)
 	}
 
 	issuerSk, err := gabi.NewPrivateKeyFromXML(issuerSkXml, false)
 	if err != nil {
-		return formatError(errors.WrapPrefix(err, "Could not deserialize issuer private key", 0))
+		return errors.WrapPrefix(err, "Could not deserialize issuer private key", 0)
 	}
 
 	issuerKeypairs[issuerKeyId] = issuer.IssuerKeypair{
@@ -38,98 +41,104 @@ func loadIssuerKeypair(issuerKeyId, issuerPkXml, issuerSkXml string) string {
 		Sk: issuerSk,
 	}
 
-	return ""
+	return nil
 }
 
 //export GenerateIssuerNonceB64
-func GenerateIssuerNonceB64(issuerPkId string) *C.char {
-	issuerNonceB64 := base64.StdEncoding.EncodeToString(issuer.GenerateIssuerNonceMessage(issuerPkId))
-	return C.CString(issuerNonceB64)
+func GenerateIssuerNonceB64(issuerPkId string) *C.Result {
+	val, err := generateIssuerNonceB64(issuerPkId)
+	return newResult(val, err)
+}
+
+func generateIssuerNonceB64(issuerPkId string) ([]byte, error) {
+	inm, err := issuer.GenerateIssuerNonceMessage(issuerPkId)
+	if err != nil {
+		return nil, errors.Errorf("Could not generate issuer nonce message")
+	}
+
+	var issuerNonceB64 []byte
+	base64.StdEncoding.Encode(issuerNonceB64, inm)
+
+	return issuerNonceB64, nil
 }
 
 //export Issue
-func Issue(issuerKeyId, issuerNonceMessageB64, commitmentsJson, attributesJson string) *C.char {
-	res := issue(issuerKeyId, issuerNonceMessageB64, commitmentsJson, attributesJson)
-	return C.CString(res)
+func Issue(issuerKeyId, issuerNonceMessageB64, commitmentsJson, attributesJson string) *C.Result {
+	val, err := issue(issuerKeyId, issuerNonceMessageB64, commitmentsJson, attributesJson)
+	return newResult(val, err)
 }
 
-func issue(issuerKeyId, issuerNonceMessageB64, commitmentsJson, attributesJson string) string {
-	defer func() string {
-		if r := recover(); r != nil {
-			errorMessage := fmt.Sprintf("Error: %s", r)
-			return errorMessage
-		} else {
-			return "Error: undefined"
-		}
-	}()
-
+func issue(issuerKeyId, issuerNonceMessageB64, commitmentsJson, attributesJson string) ([]byte, error) {
 	// Keypair
 	issuerKeypair, ok := issuerKeypairs[issuerKeyId]
 	if !ok {
-		panic("Unknown issuer key id")
+		return nil, errors.Errorf("Unknown issuer key id")
 	}
 
 	// Nonce message
 	issuerNonceMessageBytes, err := base64.StdEncoding.DecodeString(issuerNonceMessageB64)
 	if err != nil {
-		panic("Could not base64 deserialize issuerNonceMessage")
+		return nil, errors.WrapPrefix(err, "Could not base64 deserialize issuerNonceMessage", 0)
 	}
 
 	issuerNonceMessage := &common.NonceSerialization{}
 	_, err = asn1.Unmarshal(issuerNonceMessageBytes, issuerNonceMessage)
 	if err != nil {
-		panic("Could not asn1 deserialize issuerNonceMessage")
+		return nil, errors.WrapPrefix(err, "Could not asn1 deserialize issuerNonceMessage", 0)
 	}
 
 	if issuerKeyId != issuerNonceMessage.IssuerPkId {
-		panic("The given issuerKeyId doesn't match with the nonce message key id")
+		return nil, errors.Errorf("The given issuerKeyId doesn't match with the nonce message key id")
 	}
 
 	// Commitments
 	commitments := new(gabi.IssueCommitmentMessage)
 	err = json.Unmarshal([]byte(commitmentsJson), commitments)
 	if err != nil {
-		panic("Could not deserialize commitments")
+		return nil, errors.WrapPrefix(err, "Could not deserialize commitments", 0)
 	}
 
 	// Attributes
 	var attributes map[string]string
 	err = json.Unmarshal([]byte(attributesJson), &attributes)
 	if err != nil {
-		panic( "Could not deserialize attributes")
+		return nil, errors.WrapPrefix(err, "Could not deserialize attributes", 0)
 	}
 
 	// Issuance
 	issuerNonce := big.Convert(issuerNonceMessage.Nonce)
-	ccm := issuer.Issue(issuerKeyId, issuerKeypair, issuerNonce, attributes, commitments)
+	ccm, err := issuer.Issue(issuerKeyId, issuerKeypair, issuerNonce, attributes, commitments)
+	if err != nil {
+		return nil, errors.WrapPrefix(err, "Could not issue proof", 0)
+	}
 
 	var ccmJson []byte
 	ccmJson, err = json.Marshal(ccm)
 	if err != nil {
-		panic("Could not serialize create credential message")
+		return nil, errors.WrapPrefix(err, "Could not serialize create credential message", 0)
 	}
 
-	return string(ccmJson)
+	return ccmJson, nil
 }
 
 //export IssueStaticDisclosureQR
-func IssueStaticDisclosureQR(issuerKeyId, attributesJson string) *C.char {
-	res := issueStaticDisclosureQR(issuerKeyId, attributesJson)
-	return C.CString(res)
+func IssueStaticDisclosureQR(issuerKeyId, attributesJson string) *C.Result {
+	val, err := issueStaticDisclosureQR(issuerKeyId, attributesJson)
+	return newResult(val, err)
 }
 
-func issueStaticDisclosureQR(issuerKeyId, attributesJson string) string {
+func issueStaticDisclosureQR(issuerKeyId, attributesJson string) ([]byte, error) {
 	// Get issuer keypair
 	issuerKeypair, ok := issuerKeypairs[issuerKeyId]
 	if !ok {
-		return formatError(errors.Errorf("Unknown issuer key id"))
+		return nil, errors.Errorf("Unknown issuer key id")
 	}
 
 	// Parse attributes JSON
 	var attributes map[string]string
 	err := json.Unmarshal([]byte(attributesJson), &attributes)
 	if err != nil {
-		return formatError(errors.WrapPrefix(err, "Could not deserialize attributes", 0))
+		return nil, errors.WrapPrefix(err, "Could not deserialize attributes", 0)
 	}
 
 	// Do the issuance dance by ourselves
@@ -137,12 +146,15 @@ func issueStaticDisclosureQR(issuerKeyId, attributesJson string) string {
 	issuerNonce := common.GenerateNonce()
 
 	credBuilder, icm := holder.CreateCommitment(issuerKeypair.Pk, issuerNonce, holderSk)
-	ccm := issuer.Issue(issuerKeyId, issuerKeypair, issuerNonce, attributes, icm)
+	ccm, err := issuer.Issue(issuerKeyId, issuerKeypair, issuerNonce, attributes, icm)
+	if err != nil {
+		return nil, errors.WrapPrefix(err, "Could not create credential message", 0)
+	}
 
 	var cred *gabi.Credential
 	cred, err = holder.CreateCredential(credBuilder, ccm)
 	if err != nil {
-		return formatError(errors.WrapPrefix(err, "Could not create credential from ccm", 0))
+		return nil, errors.WrapPrefix(err, "Could not create credential from ccm", 0)
 	}
 
 	// Disclose and generate QR encoded string
@@ -151,15 +163,32 @@ func issueStaticDisclosureQR(issuerKeyId, attributesJson string) string {
 	var proofAsn1 []byte
 	proofAsn1, err = holder.DiscloseAllWithTime(issuerPks, cred) // FIXME: Don't use WithTime here
 	if err != nil {
-		return formatError(errors.WrapPrefix(err, "Could not disclose credential", 0))
+		return nil, errors.WrapPrefix(err, "Could not disclose credential", 0)
 	}
 
 	qrEncodedProof := common.QrEncode(proofAsn1)
-	return string(qrEncodedProof)
+	return qrEncodedProof, nil
 }
 
-func formatError(err error) string {
-	return fmt.Sprintf("Error: %s", err.Error())
+func newResult(val []byte, err error) *C.Result {
+	var cVal *C.char
+	if val != nil {
+		cVal = C.CString(string(val))
+	} else {
+		cVal = nil
+	}
+
+	var cErr *C.char
+	if err != nil {
+		cErr = C.CString(err.Error())
+	} else {
+		cErr = nil
+	}
+
+	return &C.Result{
+		value: cVal,
+		error: cErr,
+	}
 }
 
 func main() {

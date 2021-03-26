@@ -2,14 +2,17 @@ package main
 
 import (
 	"encoding/base64"
-	"fmt"
 	"github.com/minvws/nl-covid19-coronacheck-cl-core/issuer"
-	"strings"
 	"testing"
 )
 
 func TestIssue(t *testing.T) {
-	issuerNonceB64 := base64.StdEncoding.EncodeToString(issuer.GenerateIssuerNonceMessage("testPk"))
+	inm, err := issuer.GenerateIssuerNonceMessage("testPk")
+	if err != nil {
+		t.Fatal("Could not generate nonce")
+	}
+
+	issuerNonceB64 := base64.StdEncoding.EncodeToString(inm)
 
 	commitmentsJson := commitments
 	attributesJson := `{
@@ -23,27 +26,20 @@ func TestIssue(t *testing.T) {
         "birthMonth": "2"
     }`
 
-	err := loadIssuerKeypair(testIssuerKeyId, testIssuerPkXml, testIssuerSkXml)
-	if isError(err) {
-		fmt.Println(fmt.Sprint(err))
-		t.Fatal(fmt.Sprint(err))
+	err = loadIssuerKeypair(testIssuerKeyId, testIssuerPkXml, testIssuerSkXml)
+	if err != nil {
+		t.Fatal("Could not load issuer keypair")
 	}
 
-	res := issue(testIssuerKeyId, issuerNonceB64, commitmentsJson, attributesJson)
-	if isError(res) {
-		t.Fatal("Could not issue proof: " +	res)
+	_, err = issue(testIssuerKeyId, issuerNonceB64, commitmentsJson, attributesJson)
+	if err != nil {
+		t.Fatal("Could not create issue commitment message")
 	}
 
-	res2 := issueStaticDisclosureQR(testIssuerKeyId, attributesJson)
-	if isError(res) {
-		t.Fatal("Could not issuer static disclosure QR: " + res2)
+	_, err = issueStaticDisclosureQR(testIssuerKeyId, attributesJson)
+	if err != nil {
+		t.Fatal("Could not create static disclosure QR")
 	}
-
-	fmt.Println(res2)
-}
-
-func isError(str string) bool {
-	return strings.Index(str, "Error") == 0
 }
 
 var testIssuerKeyId = "testPk"

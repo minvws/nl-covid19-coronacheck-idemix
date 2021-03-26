@@ -32,11 +32,15 @@ func TestFlow(t *testing.T) {
 		t.Fatal("Error in GenerateHolderSk:", r2.Error)
 	}
 
-	issuerNonceMessageBytes := issuer.GenerateIssuerNonceMessage(testIssuerPkId)
+	issuerNonceMessageBytes, err := issuer.GenerateIssuerNonceMessage(testIssuerPkId)
+	if err != nil {
+		t.Fatal("Could not create issuer nonce message")
+	}
+
 	issuerNonceMessageBase64 := []byte(base64.StdEncoding.EncodeToString(issuerNonceMessageBytes))
 
 	var issuerNonceMessage common.NonceSerialization
-	_, err := asn1.Unmarshal(issuerNonceMessageBytes, &issuerNonceMessage)
+	_, err = asn1.Unmarshal(issuerNonceMessageBytes, &issuerNonceMessage)
 	if err != nil {
 		t.Fatal("Error unmarshalling issuerNonceMessage")
 	}
@@ -78,7 +82,11 @@ func TestFlow(t *testing.T) {
 	issuerKeypair := issuer.IssuerKeypair{Pk: issuerPk, Sk: issuerSk}
 	issuerNonce := big.Convert(issuerNonceMessage.Nonce)
 
-	ccm := issuer.Issue(testIssuerPkId, issuerKeypair, issuerNonce, attributes, icm)
+	ccm, err := issuer.Issue(testIssuerPkId, issuerKeypair, issuerNonce, attributes, icm)
+	if err != nil {
+		t.Fatal("Could not create credential message")
+	}
+
 	ccmJson, _ := json.Marshal(ccm)
 
 	r4 := CreateCredential(r2.Value, ccmJson)
