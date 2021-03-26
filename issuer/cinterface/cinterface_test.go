@@ -2,14 +2,31 @@ package main
 
 import (
 	"encoding/base64"
-	"fmt"
 	"github.com/minvws/nl-covid19-coronacheck-cl-core/issuer"
-	"strings"
 	"testing"
+	"unsafe"
 )
 
-func TestIssue(t *testing.T) {
-	issuerNonceB64 := base64.StdEncoding.EncodeToString(issuer.GenerateIssuerNonceMessage("testPk"))
+func Test_GenerateIssuerNonceB64(t *testing.T) {
+	written := 0
+	errorFlag := false
+	var buffer [65536]byte
+	var resultBuffer = unsafe.Pointer(&buffer)
+
+	GenerateIssuerNonceB64("testPk", resultBuffer, BufferSize, &written, &errorFlag)
+
+	if errorFlag {
+		t.Fatal("Could not load issuer keypair")
+	}
+}
+
+func Test_issue(t *testing.T) {
+	inm, err := issuer.GenerateIssuerNonceMessage("testPk")
+	if err != nil {
+		t.Fatal("Could not generate nonce")
+	}
+
+	issuerNonceB64 := base64.StdEncoding.EncodeToString(inm)
 
 	commitmentsJson := commitments
 	attributesJson := `{
@@ -23,27 +40,61 @@ func TestIssue(t *testing.T) {
         "birthMonth": "2"
     }`
 
-	err := loadIssuerKeypair(testIssuerKeyId, testIssuerPkXml, testIssuerSkXml)
-	if isError(err) {
-		fmt.Println(fmt.Sprint(err))
-		t.Fatal(fmt.Sprint(err))
+	err = loadIssuerKeypair(testIssuerKeyId, testIssuerPkXml, testIssuerSkXml)
+	if err != nil {
+		t.Fatal("Could not load issuer keypair")
 	}
 
-	res := issue(testIssuerKeyId, issuerNonceB64, commitmentsJson, attributesJson)
-	if isError(res) {
-		t.Fatal("Could not issue proof: " +	res)
+	_, err = issue(testIssuerKeyId, issuerNonceB64, commitmentsJson, attributesJson)
+	if err != nil {
+		t.Fatal("Could not create issue commitment message")
 	}
 
-	res2 := issueStaticDisclosureQR(testIssuerKeyId, attributesJson)
-	if isError(res) {
-		t.Fatal("Could not issuer static disclosure QR: " + res2)
+	_, err = issueStaticDisclosureQR(testIssuerKeyId, attributesJson)
+	if err != nil {
+		t.Fatal("Could not create static disclosure QR")
 	}
-
-	fmt.Println(res2)
 }
 
-func isError(str string) bool {
-	return strings.Index(str, "Error") == 0
+func Test_Issue(t *testing.T) {
+	inm, err := issuer.GenerateIssuerNonceMessage("testPk")
+	if err != nil {
+		t.Fatal("Could not generate nonce")
+	}
+
+	issuerNonceB64 := base64.StdEncoding.EncodeToString(inm)
+
+	commitmentsJson := commitments
+	attributesJson := `{
+        "isPaperProof": "0",
+        "isSpecimen": "0",
+        "sampleTime":"1616064074",
+        "testType":"PCR",
+        "firstNameInitial": "A",
+        "lastNameInitial": "B",
+        "birthDay": "13",
+        "birthMonth": "2"
+    }`
+
+	written := 0
+	errorFlag := false
+	var buffer [65536]byte
+	var resultBuffer = unsafe.Pointer(&buffer)
+
+	LoadIssuerKeypair(testIssuerKeyId, testIssuerPkXml, testIssuerSkXml, resultBuffer, BufferSize, &written, &errorFlag)
+	if errorFlag {
+		t.Fatal("Could not load issuer keypair")
+	}
+
+	Issue(testIssuerKeyId, issuerNonceB64, commitmentsJson, attributesJson, resultBuffer, BufferSize, &written, &errorFlag)
+	if errorFlag {
+		t.Fatal("Could not create issue commitment message")
+	}
+
+	IssueStaticDisclosureQR(testIssuerKeyId, attributesJson, resultBuffer, BufferSize, &written, &errorFlag)
+	if errorFlag {
+		t.Fatal("Could not create static disclosure QR")
+	}
 }
 
 var testIssuerKeyId = "testPk"
