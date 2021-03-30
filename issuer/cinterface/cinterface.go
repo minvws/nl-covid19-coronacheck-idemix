@@ -1,9 +1,5 @@
 package main
 
-// typedef struct {
-//   char* value;
-//   char* error;
-// } Result;
 import "C"
 import (
 	"encoding/asn1"
@@ -15,14 +11,15 @@ import (
 	"github.com/minvws/nl-covid19-coronacheck-cl-core/issuer"
 	"github.com/privacybydesign/gabi"
 	"github.com/privacybydesign/gabi/big"
+	"unsafe"
 )
 
 var issuerKeypairs = map[string]issuer.IssuerKeypair{}
 
 //export LoadIssuerKeypair
-func LoadIssuerKeypair(issuerKeyId, issuerPkXml, issuerSkXml string) *C.Result {
+func LoadIssuerKeypair(issuerKeyId, issuerPkXml, issuerSkXml string, resultBuffer unsafe.Pointer, written *int, error *bool) {
 	err := loadIssuerKeypair(issuerKeyId, issuerPkXml, issuerSkXml)
-	return newResult(nil, err)
+	handleResult(nil, err, resultBuffer, written, error)
 }
 
 func loadIssuerKeypair(issuerKeyId, issuerPkXml, issuerSkXml string) error {
@@ -45,9 +42,9 @@ func loadIssuerKeypair(issuerKeyId, issuerPkXml, issuerSkXml string) error {
 }
 
 //export GenerateIssuerNonceB64
-func GenerateIssuerNonceB64(issuerPkId string) *C.Result {
+func GenerateIssuerNonceB64(issuerPkId string, resultBuffer unsafe.Pointer, written *int, error *bool) {
 	val, err := generateIssuerNonceB64(issuerPkId)
-	return newResult(val, err)
+	handleResult(val, err, resultBuffer, written, error)
 }
 
 func generateIssuerNonceB64(issuerPkId string) ([]byte, error) {
@@ -56,16 +53,15 @@ func generateIssuerNonceB64(issuerPkId string) ([]byte, error) {
 		return nil, errors.Errorf("Could not generate issuer nonce message")
 	}
 
-	var issuerNonceB64 []byte
-	base64.StdEncoding.Encode(issuerNonceB64, inm)
+	var issuerNonceB64 = base64.StdEncoding.EncodeToString(inm)
 
-	return issuerNonceB64, nil
+	return []byte(issuerNonceB64), nil
 }
 
 //export Issue
-func Issue(issuerKeyId, issuerNonceMessageB64, commitmentsJson, attributesJson string) *C.Result {
+func Issue(issuerKeyId, issuerNonceMessageB64, commitmentsJson, attributesJson string, resultBuffer unsafe.Pointer, written *int, error *bool) {
 	val, err := issue(issuerKeyId, issuerNonceMessageB64, commitmentsJson, attributesJson)
-	return newResult(val, err)
+	handleResult(val, err, resultBuffer, written, error)
 }
 
 func issue(issuerKeyId, issuerNonceMessageB64, commitmentsJson, attributesJson string) ([]byte, error) {
@@ -122,9 +118,10 @@ func issue(issuerKeyId, issuerNonceMessageB64, commitmentsJson, attributesJson s
 }
 
 //export IssueStaticDisclosureQR
-func IssueStaticDisclosureQR(issuerKeyId, attributesJson string) *C.Result {
+func IssueStaticDisclosureQR(issuerKeyId, attributesJson string, resultBuffer unsafe.Pointer, written *int, error *bool) {
 	val, err := issueStaticDisclosureQR(issuerKeyId, attributesJson)
-	return newResult(val, err)
+
+	handleResult(val, err, resultBuffer, written, error)
 }
 
 func issueStaticDisclosureQR(issuerKeyId, attributesJson string) ([]byte, error) {
@@ -170,25 +167,29 @@ func issueStaticDisclosureQR(issuerKeyId, attributesJson string) ([]byte, error)
 	return qrEncodedProof, nil
 }
 
-func newResult(val []byte, err error) *C.Result {
-	var cVal *C.char
-	if val != nil {
-		cVal = C.CString(string(val))
+const BufferSize int = 65536
+
+func handleResult(val []byte, err error, resultBuffer unsafe.Pointer, written *int, error *bool) {
+	result := (*[BufferSize]byte)(resultBuffer)[:BufferSize]
+
+	// Store either result or error in the buffer
+	bytes := val
+	if err == nil {
+		*error = false
 	} else {
-		cVal = nil
+		*error = true
+		bytes = []byte(err.Error())
 	}
 
-	var cErr *C.char
-	if err != nil {
-		cErr = C.CString(err.Error())
-	} else {
-		cErr = nil
+	// Handle *void* result
+	if bytes == nil	{
+		*written = 0
+		return
 	}
 
-	return &C.Result{
-		value: cVal,
-		error: cErr,
-	}
+	// Handle value-result or error-result
+	copy(result, bytes)
+	*written = len(bytes)
 }
 
 func main() {
