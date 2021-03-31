@@ -13,7 +13,7 @@ func Test_GenerateIssuerNonceB64(t *testing.T) {
 	var buffer [65536]byte
 	var resultBuffer = unsafe.Pointer(&buffer)
 
-	GenerateIssuerNonceB64("testPk", resultBuffer, &written, &errorFlag)
+	GenerateIssuerNonceB64("testPk", resultBuffer, BufferSize, &written, &errorFlag)
 
 	if errorFlag {
 		t.Fatal("Could not load issuer keypair")
@@ -81,17 +81,17 @@ func Test_Issue(t *testing.T) {
 	var buffer [65536]byte
 	var resultBuffer = unsafe.Pointer(&buffer)
 
-	LoadIssuerKeypair(testIssuerKeyId, testIssuerPkXml, testIssuerSkXml, resultBuffer, &written, &errorFlag)
+	LoadIssuerKeypair(testIssuerKeyId, testIssuerPkXml, testIssuerSkXml, resultBuffer, BufferSize, &written, &errorFlag)
 	if errorFlag {
 		t.Fatal("Could not load issuer keypair")
 	}
 
-	Issue(testIssuerKeyId, issuerNonceB64, commitmentsJson, attributesJson, resultBuffer, &written, &errorFlag)
+	Issue(testIssuerKeyId, issuerNonceB64, commitmentsJson, attributesJson, resultBuffer, BufferSize, &written, &errorFlag)
 	if errorFlag {
 		t.Fatal("Could not create issue commitment message")
 	}
 
-	IssueStaticDisclosureQR(testIssuerKeyId, attributesJson, resultBuffer, &written, &errorFlag)
+	IssueStaticDisclosureQR(testIssuerKeyId, attributesJson, resultBuffer, BufferSize, &written, &errorFlag)
 	if errorFlag {
 		t.Fatal("Could not create static disclosure QR")
 	}

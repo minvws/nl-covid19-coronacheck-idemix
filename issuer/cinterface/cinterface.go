@@ -17,9 +17,9 @@ import (
 var issuerKeypairs = map[string]issuer.IssuerKeypair{}
 
 //export LoadIssuerKeypair
-func LoadIssuerKeypair(issuerKeyId, issuerPkXml, issuerSkXml string, resultBuffer unsafe.Pointer, written *int, error *bool) {
+func LoadIssuerKeypair(issuerKeyId, issuerPkXml, issuerSkXml string, resultBuffer unsafe.Pointer, bufferLength int, written *int, error *bool) {
 	err := loadIssuerKeypair(issuerKeyId, issuerPkXml, issuerSkXml)
-	handleResult(nil, err, resultBuffer, written, error)
+	handleResult(nil, err, resultBuffer, bufferLength, written, error)
 }
 
 func loadIssuerKeypair(issuerKeyId, issuerPkXml, issuerSkXml string) error {
@@ -42,9 +42,9 @@ func loadIssuerKeypair(issuerKeyId, issuerPkXml, issuerSkXml string) error {
 }
 
 //export GenerateIssuerNonceB64
-func GenerateIssuerNonceB64(issuerPkId string, resultBuffer unsafe.Pointer, written *int, error *bool) {
+func GenerateIssuerNonceB64(issuerPkId string, resultBuffer unsafe.Pointer, bufferLength int, written *int, error *bool) {
 	val, err := generateIssuerNonceB64(issuerPkId)
-	handleResult(val, err, resultBuffer, written, error)
+	handleResult(val, err, resultBuffer, bufferLength, written, error)
 }
 
 func generateIssuerNonceB64(issuerPkId string) ([]byte, error) {
@@ -59,9 +59,9 @@ func generateIssuerNonceB64(issuerPkId string) ([]byte, error) {
 }
 
 //export Issue
-func Issue(issuerKeyId, issuerNonceMessageB64, commitmentsJson, attributesJson string, resultBuffer unsafe.Pointer, written *int, error *bool) {
+func Issue(issuerKeyId, issuerNonceMessageB64, commitmentsJson, attributesJson string, resultBuffer unsafe.Pointer, bufferLength int, written *int, error *bool) {
 	val, err := issue(issuerKeyId, issuerNonceMessageB64, commitmentsJson, attributesJson)
-	handleResult(val, err, resultBuffer, written, error)
+	handleResult(val, err, resultBuffer, bufferLength, written, error)
 }
 
 func issue(issuerKeyId, issuerNonceMessageB64, commitmentsJson, attributesJson string) ([]byte, error) {
@@ -118,10 +118,10 @@ func issue(issuerKeyId, issuerNonceMessageB64, commitmentsJson, attributesJson s
 }
 
 //export IssueStaticDisclosureQR
-func IssueStaticDisclosureQR(issuerKeyId, attributesJson string, resultBuffer unsafe.Pointer, written *int, error *bool) {
+func IssueStaticDisclosureQR(issuerKeyId, attributesJson string, resultBuffer unsafe.Pointer, bufferLength int, written *int, error *bool) {
 	val, err := issueStaticDisclosureQR(issuerKeyId, attributesJson)
 
-	handleResult(val, err, resultBuffer, written, error)
+	handleResult(val, err, resultBuffer, bufferLength, written, error)
 }
 
 func issueStaticDisclosureQR(issuerKeyId, attributesJson string) ([]byte, error) {
@@ -169,7 +169,13 @@ func issueStaticDisclosureQR(issuerKeyId, attributesJson string) ([]byte, error)
 
 const BufferSize int = 65536
 
-func handleResult(val []byte, err error, resultBuffer unsafe.Pointer, written *int, error *bool) {
+func handleResult(val []byte, err error, resultBuffer unsafe.Pointer, bufferLength int, written *int, error *bool) {
+	// Handle buffer size mismatch
+	if bufferLength != BufferSize {
+		*error = true
+		return
+	}
+
 	result := (*[BufferSize]byte)(resultBuffer)[:BufferSize]
 
 	// Store either result or error in the buffer
