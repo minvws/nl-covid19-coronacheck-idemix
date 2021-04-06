@@ -94,7 +94,7 @@ func CreateCommitmentMessage(holderSkJson, issuerNonceMessageBase64 []byte) *Res
 
 	icmJson, err := json.Marshal(icm)
 	if err != nil {
-		panic("Could not marshal IssueCommitmentMessage")
+		return &Result{nil, errors.WrapPrefix(err, "Could not marshal IssueCommitmentMessage", 0).Error()}
 	}
 
 	return &Result{icmJson, ""}

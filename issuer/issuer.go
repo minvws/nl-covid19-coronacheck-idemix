@@ -11,9 +11,9 @@ import (
 )
 
 type IssuerKeypair struct {
-	       Pk *gabi.PublicKey
-	       Sk *gabi.PrivateKey
-	}
+	Pk *gabi.PublicKey
+	Sk *gabi.PrivateKey
+}
 
 type IssuanceSession struct {
 	SessionId       int
@@ -21,20 +21,20 @@ type IssuanceSession struct {
 	AttributeValues []string
 }
 
-func GenerateIssuerNonceMessage(issuerPkId string) []byte {
+func GenerateIssuerNonceMessage(issuerPkId string) ([]byte, error) {
 	res, err := asn1.Marshal(common.NonceSerialization{
 		Nonce:      common.GenerateNonce().Go(),
 		IssuerPkId: issuerPkId,
 	})
 
 	if err != nil {
-		panic(errors.WrapPrefix(err, "Could not serialize nonce", 0).Error())
+		return nil, errors.WrapPrefix(err, "Could not serialize nonce", 0)
 	}
 
-	return res
+	return res, nil
 }
 
-func Issue(issuerPkId string, issuerKeypair IssuerKeypair, issuerNonce *big.Int, attributes map[string]string, cmmMsg *gabi.IssueCommitmentMessage) *common.CreateCredentialMessage {
+func Issue(issuerPkId string, issuerKeypair IssuerKeypair, issuerNonce *big.Int, attributes map[string]string, cmmMsg *gabi.IssueCommitmentMessage) (*common.CreateCredentialMessage, error) {
 	// Construct metadata attribute
 	metadataAttribute, err := asn1.Marshal(common.CredentialMetadataSerialization{
 		CredentialVersion: common.CredentialVersion,
@@ -42,7 +42,7 @@ func Issue(issuerPkId string, issuerKeypair IssuerKeypair, issuerNonce *big.Int,
 	})
 
 	if err != nil {
-		panic(errors.WrapPrefix(err, "Could not serialize credential metadata attribute", 0).Error())
+		return nil, errors.WrapPrefix(err, "Could not serialize credential metadata attribute", 0)
 	}
 
 	// Build list of attribute in the correct order
@@ -56,7 +56,7 @@ func Issue(issuerPkId string, issuerKeypair IssuerKeypair, issuerNonce *big.Int,
 
 		v, ok := attributes[attributeType]
 		if !ok {
-			panic(errors.Errorf("Required attribute %s was not supplied", attributeType).Error())
+			return nil, errors.Errorf("Required attribute %s was not supplied", attributeType)
 		}
 
 		attributesList = append(attributesList, []byte(v))
@@ -65,7 +65,7 @@ func Issue(issuerPkId string, issuerKeypair IssuerKeypair, issuerNonce *big.Int,
 	// Compute attribute values
 	attributeInts, err := common.ComputeAttributeInts(attributesList)
 	if err != nil {
-		panic("Error during computing attributes: " + err.Error())
+		return nil, errors.WrapPrefix(err, "Could not compute attributes", 0)
 	}
 
 	// Instantiate issuer
@@ -75,22 +75,22 @@ func Issue(issuerPkId string, issuerKeypair IssuerKeypair, issuerNonce *big.Int,
 
 	// Get commitment
 	if len(cmmMsg.Proofs) != 1 {
-		panic("Incorrect amount of proofs")
+		return nil, errors.Errorf("Incorrect amount of proofs")
 	}
 
 	proof, ok := cmmMsg.Proofs[0].(*gabi.ProofU)
 	if !ok {
-		panic("Received invalid issuance commitment")
+		return nil, errors.Errorf("Received invalid issuance commitment")
 	}
 
 	// Compute CL signatures
 	ism, err := issuer.IssueSignature(proof.U, attributeInts, nil, cmmMsg.Nonce2, []int{})
 	if err != nil {
-		panic("Issuance failed: " + err.Error())
+		return nil, errors.WrapPrefix(err, "Could not create issue signature", 0)
 	}
 
 	return &common.CreateCredentialMessage{
 		IssueSignatureMessage: ism,
 		Attributes:            attributesList,
-	}
+	}, nil
 }
