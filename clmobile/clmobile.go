@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"github.com/go-errors/errors"
+	"github.com/minvws/base45-go/base45"
 	"github.com/minvws/nl-covid19-coronacheck-cl-core/common"
 	"github.com/minvws/nl-covid19-coronacheck-cl-core/holder"
 	"github.com/minvws/nl-covid19-coronacheck-cl-core/verifier"
@@ -159,7 +160,12 @@ func DiscloseAllWithTimeQrEncoded(holderSkJson, credJson []byte) *Result {
 		return r
 	}
 
-	return &Result{common.QrEncode(r.Value), ""}
+	encoded, err := base45.Base45Encode(r.Value)
+	if err != nil {
+		return &Result{nil, errors.WrapPrefix(err, "Could not base45 encode disclosure", 0).Error()}
+	}
+
+	return &Result{encoded, ""}
 }
 
 func DiscloseAllWithTime(credJson []byte) *Result {
@@ -184,7 +190,7 @@ type VerifyResult struct {
 }
 
 func VerifyQREncoded(proofQrEncodedAsn1 []byte) *VerifyResult {
-	proofAsn1, err := common.QrDecode(proofQrEncodedAsn1)
+	proofAsn1, err := base45.Base45Decode(proofQrEncodedAsn1)
 	if err != nil {
 		return &VerifyResult{nil, 0, errors.WrapPrefix(err, "Could not decode QR", 0).Error()}
 	}
