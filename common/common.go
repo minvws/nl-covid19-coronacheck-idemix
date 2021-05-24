@@ -3,6 +3,7 @@ package common
 import (
 	"crypto/rand"
 	"crypto/sha256"
+	"encoding/asn1"
 	"encoding/json"
 	"fmt"
 	"github.com/go-errors/errors"
@@ -41,8 +42,11 @@ var AttributeTypesV2 = []string{
 }
 
 type CredentialMetadataSerialization struct {
+	// CredentialVersion identifies the credential version, and is always a single byte
 	CredentialVersion []byte
-	IssuerPkId        string
+
+	// IssuerPkId identifies the public key to use for verification
+	IssuerPkId string
 }
 
 type ProofSerialization struct {
@@ -129,6 +133,21 @@ func CalculateTimeBasedChallenge(unixTimeSeconds int64) *big.Int {
 
 	challengeByteSize := GabiSystemParameters.Lstatzk / 8
 	return new(big.Int).SetBytes(timeHash[:challengeByteSize])
+}
+
+func DecodeMetadataAttribute(metadataAttribute *big.Int) (credentialVersion int, issuerPkId string, err error) {
+	credentialMetadata := &CredentialMetadataSerialization{}
+
+	attributeBytes := DecodeAttributeInt(metadataAttribute)
+	_, err = asn1.Unmarshal(attributeBytes, credentialMetadata)
+	if err != nil {
+		return 0, "", errors.WrapPrefix(err, "Could not unmarshal metadata attribute", 0)
+	}
+
+	// The credential version is defined to always be a single byte
+	credentialVersion = int(credentialMetadata.CredentialVersion[0])
+
+	return credentialVersion, credentialMetadata.IssuerPkId, nil
 }
 
 func DebugSerializableStruct(s interface{}) {

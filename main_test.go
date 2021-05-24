@@ -1,10 +1,12 @@
 package main
 
 import (
+	"github.com/minvws/nl-covid19-coronacheck-idemix/common"
 	"github.com/minvws/nl-covid19-coronacheck-idemix/holder"
 	"github.com/minvws/nl-covid19-coronacheck-idemix/issuer"
 	"github.com/minvws/nl-covid19-coronacheck-idemix/issuer/localsigner"
 	"github.com/privacybydesign/gabi"
+	"reflect"
 	"strconv"
 	"testing"
 	"time"
@@ -26,7 +28,7 @@ func TestPreliminary(t *testing.T) {
 	holderSk := holder.GenerateSk()
 	h := holder.New(holderSk, issuerPks)
 
-	// Dance
+	// Issuance dance
 	pim, err := iss.PrepareIssue(credentialAmount)
 	if err != nil {
 		t.Fatal("Could not get prepareIssueMessage:", err.Error())
@@ -37,10 +39,12 @@ func TestPreliminary(t *testing.T) {
 		t.Fatal("Could not create credential commitments:", err.Error())
 	}
 
+	credentialsAttributes := buildCredentialsAttributes(credentialAmount)
+
 	im := &issuer.IssueMessage{
 		PrepareIssuanceMessage: pim,
 		IssueCommitmentMessage: icm,
-		CredentialsAttributes:  buildCredentialsAttributes(credentialAmount),
+		CredentialsAttributes:  credentialsAttributes,
 	}
 
 	ccms, err := iss.Issue(im)
@@ -48,9 +52,25 @@ func TestPreliminary(t *testing.T) {
 		t.Fatal("Could not issue credentials:", err.Error())
 	}
 
-	_, err = h.CreateCredentials(credBuilders, ccms)
+	creds, err := h.CreateCredentials(credBuilders, ccms)
 	if err != nil {
 		t.Fatal("Could not create credentials:", err.Error())
+	}
+
+	// Read and check
+	for i := 0; i < credentialAmount; i++ {
+		readAttributes, credVersion, err := h.ReadCredential(creds[i])
+		if err != nil {
+			t.Fatal("Could not read credential:", err.Error())
+		}
+
+		if credVersion != int(common.CredentialVersion[0]) {
+			t.Fatal("Incorrect credential version:", credVersion)
+		}
+
+		if !reflect.DeepEqual(credentialsAttributes[i], readAttributes) {
+			t.Fatal("Read attributes are not the same as those issued")
+		}
 	}
 }
 

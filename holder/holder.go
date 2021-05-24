@@ -65,19 +65,26 @@ func (h *Holder) CreateCredentials(credBuilders []gabi.ProofBuilder, ccms []*com
 	return creds, nil
 }
 
-func (h *Holder) ReadCredential(cred *gabi.Credential) (map[string]string, error) {
+func (h *Holder) ReadCredential(cred *gabi.Credential) (attributes map[string]string, version int, err error) {
 	attributeAmount := len(cred.Attributes) - 2
 	if attributeAmount != len(common.AttributeTypesV2) {
-		return nil, errors.Errorf("Unexpected amount of attributes in credential")
+		return nil, 0, errors.Errorf("Unexpected amount of attributes in credential")
 	}
 
-	attributes := make(map[string]string)
+	// Decode and insert every attribute
+	attributes = make(map[string]string)
 	for i := 0; i < attributeAmount; i++ {
 		attributeType := common.AttributeTypesV2[i]
 		attributes[attributeType] = string(common.DecodeAttributeInt(cred.Attributes[i+2]))
 	}
 
-	return attributes, nil
+	// Decode metadata to retrieve credential version
+	credentialVersion, _, err := common.DecodeMetadataAttribute(cred.Attributes[1])
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return attributes, credentialVersion, nil
 }
 
 func (h *Holder) findIssuerPk(issuerPkId string) (*gabi.PublicKey, error) {
