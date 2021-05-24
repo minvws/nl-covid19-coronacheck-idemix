@@ -17,7 +17,7 @@ func Verify(issuerPks map[string]*gabi.PublicKey, proofAsn1 []byte) (map[string]
 	}
 
 	// Make sure the amount of disclosure choices match the amount of attributes, plus secret key and metadata
-	numAttributes := len(common.AttributeTypes) + 2
+	numAttributes := len(common.AttributeTypesV1) + 2
 	if len(ps.DisclosureChoices) != numAttributes {
 		return nil, 0, errors.Errorf("Invalid amount of disclosure choices")
 	}
@@ -98,7 +98,7 @@ func Verify(issuerPks map[string]*gabi.PublicKey, proofAsn1 []byte) (map[string]
 			continue
 		}
 
-		attributeType := common.AttributeTypes[disclosureIndex-2]
+		attributeType := common.AttributeTypesV1[disclosureIndex-2]
 		attributes[attributeType] = string(common.DecodeAttributeInt(d))
 	}
 

@@ -16,9 +16,9 @@ var BigOne = big.NewInt(1)
 var GabiSystemParameters = gabi.DefaultSystemParameters[2048]
 
 var ProofSerializationVersion = []byte{0x00, 0x01, 'N', 'L'}
-var CredentialVersion = []byte{1}
+var CredentialVersion = []byte{2}
 
-var AttributeTypes = []string{
+var AttributeTypesV1 = []string{
 	"isSpecimen",
 	"isPaperProof",
 	"testType",
@@ -29,14 +29,19 @@ var AttributeTypes = []string{
 	"birthMonth",
 }
 
+var AttributeTypesV2 = []string{
+	"isSpecimen",
+	"stripType",
+	"validFrom",
+	"firstNameInitial",
+	"lastNameInitial",
+	"birthDay",
+	"birthMonth",
+}
+
 type CredentialMetadataSerialization struct {
 	CredentialVersion []byte
 	IssuerPkId        string
-}
-
-type NonceSerialization struct {
-	Nonce      *gobig.Int
-	IssuerPkId string
 }
 
 type ProofSerialization struct {
@@ -51,8 +56,14 @@ type ProofSerialization struct {
 	ADisclosed        []*gobig.Int
 }
 
+type PrepareIssueMessage struct {
+	IssuerPkId       string   `json:"issuerPkId"`
+	IssuerNonce      *big.Int `json:"issuerNonce"`
+	CredentialAmount int      `json:"credentialAmount"`
+}
+
 type CreateCredentialMessage struct {
-	IssueSignatureMessage *gabi.IssueSignatureMessage `json:"ism"`
+	IssueSignatureMessage *gabi.IssueSignatureMessage `json:"issueSignatureMessage"`
 	Attributes            [][]byte                    `json:"attributes"`
 }
 
@@ -76,7 +87,7 @@ func GenerateNonce() *big.Int {
 func ComputeAttributeInts(attributes [][]byte) ([]*big.Int, error) {
 	// The amount of attributes including the first metadata attribute
 	attributeAmount := len(attributes)
-	if attributeAmount != len(AttributeTypes)+1 {
+	if attributeAmount != len(AttributeTypesV2)+1 {
 		return nil, errors.New("Amount of attribute values don't match amount of attribute types")
 	}
 
@@ -86,9 +97,10 @@ func ComputeAttributeInts(attributes [][]byte) ([]*big.Int, error) {
 		attrs[i] = new(big.Int)
 		attrs[i].SetBytes(val)
 
-		// Let the last bit distinguish empty vs. optional attributes
-		attrs[i].Lsh(attrs[i], 1)             // attr <<= 1
-		attrs[i].Add(attrs[i], big.NewInt(1)) // attr += 1
+		// The last bit distinguishes empty vs. optional attributes
+		// Set it, to signify that these attributes are non-optional
+		attrs[i].Lsh(attrs[i], 1)
+		attrs[i].Add(attrs[i], big.NewInt(1))
 	}
 
 	return attrs, nil
@@ -97,10 +109,12 @@ func ComputeAttributeInts(attributes [][]byte) ([]*big.Int, error) {
 func DecodeAttributeInt(a *big.Int) []byte {
 	attributeInt := new(big.Int).Set(a)
 
+	// The last bit distinguishes empty vs. optional attributes
 	if attributeInt.Bit(0) == 0 {
-		// TODO: Decide if and how to support optional attributes
+		// Optional attribute
 		return []byte{}
 	} else {
+		// Empty attribute, right shift to get the actual value
 		attributeInt.Rsh(attributeInt, 1)
 		return attributeInt.Bytes()
 	}
@@ -117,6 +131,6 @@ func CalculateTimeBasedChallenge(unixTimeSeconds int64) *big.Int {
 }
 
 func DebugSerializableStruct(s interface{}) {
-	str, _ := json.Marshal(s)
+	str, _ := json.MarshalIndent(s, "", "  ")
 	fmt.Println(string(str))
 }
