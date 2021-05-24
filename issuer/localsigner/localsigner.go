@@ -12,7 +12,7 @@ type LocalSigner struct {
 	PkId string
 	Pk   *gabi.PublicKey
 
-	sk   *gabi.PrivateKey
+	sk *gabi.PrivateKey
 }
 
 func New(pkId, pkPath, skPath string) (*LocalSigner, error) {

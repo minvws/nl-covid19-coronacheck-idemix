@@ -66,8 +66,8 @@ func configureServer(cmd *cobra.Command) (*server.Configuration, error) {
 		ListenAddress: viper.GetString("listen-address"),
 		ListenPort:    viper.GetString("listen-port"),
 
-		PublicKeyId: viper.GetString("public-key-id"),
-		PublicKeyPath: viper.GetString("public-key-path"),
+		PublicKeyId:    viper.GetString("public-key-id"),
+		PublicKeyPath:  viper.GetString("public-key-path"),
 		PrivateKeyPath: viper.GetString("private-key-path"),
 	}
 
