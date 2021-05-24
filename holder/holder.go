@@ -65,7 +65,7 @@ func (h *Holder) CreateCredentials(credBuilders []gabi.ProofBuilder, ccms []*com
 	return creds, nil
 }
 
-func (h *Holder) ReadCredential(cred *gabi.Credential) (attributes map[string]string, version int, err error) {
+func ReadCredential(cred *gabi.Credential) (attributes map[string]string, version int, err error) {
 	attributeAmount := len(cred.Attributes) - 2
 	if attributeAmount != len(common.AttributeTypesV2) {
 		return nil, 0, errors.Errorf("Unexpected amount of attributes in credential")

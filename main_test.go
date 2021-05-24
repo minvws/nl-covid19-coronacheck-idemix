@@ -59,7 +59,7 @@ func TestPreliminary(t *testing.T) {
 
 	// Read and check
 	for i := 0; i < credentialAmount; i++ {
-		readAttributes, credVersion, err := h.ReadCredential(creds[i])
+		readAttributes, credVersion, err := holder.ReadCredential(creds[i])
 		if err != nil {
 			t.Fatal("Could not read credential:", err.Error())
 		}
