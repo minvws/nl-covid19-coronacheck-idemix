@@ -64,6 +64,7 @@ func buildCredentialsAttributes(credentialAmount int) []map[string]string {
 			"isSpecimen":       "0",
 			"stripType":        "0",
 			"validFrom":        strconv.FormatInt(validFrom, 10),
+			"validForHours":    "24",
 			"firstNameInitial": "A",
 			"lastNameInitial":  "R",
 			"birthDay":         "20",

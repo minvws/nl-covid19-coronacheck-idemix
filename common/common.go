@@ -33,6 +33,7 @@ var AttributeTypesV2 = []string{
 	"isSpecimen",
 	"stripType",
 	"validFrom",
+	"validForHours",
 	"firstNameInitial",
 	"lastNameInitial",
 	"birthDay",
