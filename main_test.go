@@ -42,7 +42,7 @@ func TestPreliminary(t *testing.T) {
 	credentialsAttributes := buildCredentialsAttributes(credentialAmount)
 
 	im := &issuer.IssueMessage{
-		PrepareIssuanceMessage: pim,
+		PrepareIssueMessage:    pim,
 		IssueCommitmentMessage: icm,
 		CredentialsAttributes:  credentialsAttributes,
 	}

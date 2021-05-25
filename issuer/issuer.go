@@ -18,7 +18,7 @@ type Issuer struct {
 }
 
 type IssueMessage struct {
-	PrepareIssuanceMessage *common.PrepareIssueMessage  `json:"prepareIssuanceMessage"`
+	PrepareIssueMessage    *common.PrepareIssueMessage  `json:"prepareIssueMessage"`
 	IssueCommitmentMessage *gabi.IssueCommitmentMessage `json:"issueCommitmentMessage"`
 	CredentialsAttributes  []map[string]string          `json:"credentialsAttributes"`
 }
@@ -49,7 +49,7 @@ func (iss *Issuer) Issue(im *IssueMessage) ([]*common.CreateCredentialMessage, e
 	}
 
 	// Build the metadata attribute that is present in every credential
-	metadataAttribute, err := buildMetadataAttribute(im.PrepareIssuanceMessage.IssuerPkId)
+	metadataAttribute, err := buildMetadataAttribute(im.PrepareIssueMessage.IssuerPkId)
 	if err != nil {
 		return nil, err
 	}

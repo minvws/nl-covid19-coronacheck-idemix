@@ -97,7 +97,7 @@ func (s *server) handleIssue(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// TODO: Better handle this with a separate unmarshaler
-	if issueMessage.CredentialsAttributes == nil || issueMessage.IssueCommitmentMessage == nil || issueMessage.PrepareIssuanceMessage == nil {
+	if issueMessage.CredentialsAttributes == nil || issueMessage.IssueCommitmentMessage == nil || issueMessage.PrepareIssueMessage == nil {
 		writeError(w, errors.Errorf("A required field of issueMessage is missing"))
 		return
 	}
