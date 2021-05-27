@@ -80,25 +80,30 @@ func TestPreliminary(t *testing.T) {
 		// Disclose
 		proofBase45, err := h.DiscloseAllWithTimeQREncoded(creds[i])
 		if err != nil {
-			t.Fatal("Could not disclosure credential")
+			t.Fatal("Could not disclosure credential:", err.Error())
 		}
 
 		// Verify
-		verifiedAttributes, verifiedDisclosureTime, err := v.VerifyQREncoded(proofBase45)
+		verifiedCred, err := v.VerifyQREncoded(proofBase45)
 		if err != nil {
-			t.Fatal("Could not verify attributes")
+			t.Fatal("Could not verify attributes:", err.Error())
 		}
 
-		common.DebugSerializableStruct(credentialsAttributes[i])
-		common.DebugSerializableStruct(verifiedAttributes)
-
-		if !reflect.DeepEqual(credentialsAttributes[i], verifiedAttributes) {
+		if !reflect.DeepEqual(credentialsAttributes[i], verifiedCred.Attributes) {
 			t.Fatal("Verified attributes are not the same as those issued")
 		}
 
-		secondsDifference := int(math.Abs(float64(verifiedDisclosureTime - disclosureTime)))
+		secondsDifference := int(math.Abs(float64(verifiedCred.UnixTimeSeconds - disclosureTime)))
 		if secondsDifference > 5 {
-			t.Fatal("Invalid verified disclosure time (or your test machine is really slow)")
+			t.Fatal("Invalid verified disclosure time (or your test machine is really slow):", secondsDifference)
+		}
+
+		if verifiedCred.IssuerPkId != testIssuerPkId {
+			t.Fatal("Incorrect issuer public key id:", verifiedCred.IssuerPkId)
+		}
+
+		if verifiedCred.CredentialVersion != int(common.CredentialVersion[0]) {
+			t.Fatal("Incorrect redential version:", verifiedCred.CredentialVersion)
 		}
 	}
 }

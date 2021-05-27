@@ -13,42 +13,49 @@ type Verifier struct {
 	issuerPks map[string]*gabi.PublicKey
 }
 
+type VerifiedCredential struct {
+	Attributes        map[string]string
+	UnixTimeSeconds   int64
+	IssuerPkId        string
+	CredentialVersion int
+}
+
 func New(issuerPks map[string]*gabi.PublicKey) *Verifier {
 	return &Verifier{
 		issuerPks: issuerPks,
 	}
 }
 
-func (v *Verifier) VerifyQREncoded(proofBase45 []byte) (map[string]string, int64, error) {
+func (v *Verifier) VerifyQREncoded(proofBase45 []byte) (*VerifiedCredential, error) {
 	proofAsn1, err := base45.Base45Decode(proofBase45)
 	if err != nil {
-		return nil, 0, errors.Errorf("Could not base45 decode proof")
+		return nil, errors.Errorf("Could not base45 decode proof")
 	}
 
 	return v.Verify(proofAsn1)
 }
 
-func (v *Verifier) Verify(proofAsn1 []byte) (map[string]string, int64, error) {
+func (v *Verifier) Verify(proofAsn1 []byte) (*VerifiedCredential, error) {
 	// Deserialize proof
 	ps := &common.ProofSerialization{}
 	_, err := asn1.Unmarshal(proofAsn1, ps)
 	if err != nil {
-		return nil, 0, errors.Errorf("Could not unmarshal proof")
+		return nil, errors.Errorf("Could not unmarshal proof")
 	}
 
 	// Make sure the amount of disclosure choices match the amount of attributes, plus secret key and metadata
 	numAttributes := len(common.AttributeTypesV1) + 2
 	if len(ps.DisclosureChoices) != numAttributes {
-		return nil, 0, errors.Errorf("Invalid amount of disclosure choices")
+		return nil, errors.Errorf("Invalid amount of disclosure choices")
 	}
 
 	// Validate that the secret key is not marked as disclosed, and the metadata is marked as disclosed
 	if ps.DisclosureChoices[0] {
-		return nil, 0, errors.Errorf("First attribute (secret key) should never be disclosed")
+		return nil, errors.Errorf("First attribute (secret key) should never be disclosed")
 	}
 
 	if !ps.DisclosureChoices[1] {
-		return nil, 0, errors.Errorf("Second attribute (metadata) should be disclosed")
+		return nil, errors.Errorf("Second attribute (metadata) should be disclosed")
 	}
 
 	// Convert the lists of disclosures and non-disclosure responses to a
@@ -62,13 +69,13 @@ func (v *Verifier) Verify(proofAsn1 []byte) (map[string]string, int64, error) {
 	for i, disclosureChoice := range ps.DisclosureChoices {
 		if disclosureChoice {
 			if di >= numDisclosures {
-				return nil, 0, errors.Errorf("Incongruent amount of disclosures")
+				return nil, errors.Errorf("Incongruent amount of disclosures")
 			}
 			aDisclosed[i] = big.Convert(ps.ADisclosed[di])
 			di++
 		} else {
 			if ri >= numResponses {
-				return nil, 0, errors.Errorf("Incongruent amount of non-disclosure responses")
+				return nil, errors.Errorf("Incongruent amount of non-disclosure responses")
 			}
 			aResponses[i] = big.Convert(ps.AResponses[ri])
 			ri++
@@ -76,17 +83,14 @@ func (v *Verifier) Verify(proofAsn1 []byte) (map[string]string, int64, error) {
 	}
 
 	// Retrieve the metadata attribute and get the correct public key
-	metadataAttribute := common.DecodeAttributeInt(aDisclosed[1])
-
-	credentialMetadata := &common.CredentialMetadataSerialization{}
-	_, err = asn1.Unmarshal(metadataAttribute, credentialMetadata)
+	credentialVersion, issuerPkId, err := common.DecodeMetadataAttribute(aDisclosed[1])
 	if err != nil {
-		return nil, 0, errors.Errorf("Could not unmarshal metadata attribute")
+		return nil, err
 	}
 
-	issuerPk, ok := v.issuerPks[credentialMetadata.IssuerPkId]
+	issuerPk, ok := v.issuerPks[issuerPkId]
 	if !ok {
-		return nil, 0, errors.Errorf("Could not find public key referenced by credential")
+		return nil, errors.Errorf("Could not find public key referenced by credential")
 	}
 
 	// Create a proofD structure
@@ -107,7 +111,7 @@ func (v *Verifier) Verify(proofAsn1 []byte) (map[string]string, int64, error) {
 	valid := proofList.Verify([]*gabi.PublicKey{issuerPk}, common.BigOne, timeBasedChallenge, false, []string{})
 
 	if !valid {
-		return nil, 0, errors.Errorf("Invalid proof")
+		return nil, errors.Errorf("Invalid proof")
 	}
 
 	// Retrieve attribute values
@@ -122,5 +126,10 @@ func (v *Verifier) Verify(proofAsn1 []byte) (map[string]string, int64, error) {
 		attributes[attributeType] = string(common.DecodeAttributeInt(d))
 	}
 
-	return attributes, ps.UnixTimeSeconds, nil
+	return &VerifiedCredential{
+		Attributes:        attributes,
+		UnixTimeSeconds:   ps.UnixTimeSeconds,
+		IssuerPkId:        issuerPkId,
+		CredentialVersion: credentialVersion,
+	}, nil
 }
