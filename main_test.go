@@ -5,7 +5,9 @@ import (
 	"github.com/minvws/nl-covid19-coronacheck-idemix/holder"
 	"github.com/minvws/nl-covid19-coronacheck-idemix/issuer"
 	"github.com/minvws/nl-covid19-coronacheck-idemix/issuer/localsigner"
+	"github.com/minvws/nl-covid19-coronacheck-idemix/verifier"
 	"github.com/privacybydesign/gabi"
+	"math"
 	"reflect"
 	"strconv"
 	"testing"
@@ -13,7 +15,7 @@ import (
 )
 
 func TestPreliminary(t *testing.T) {
-	credentialAmount := 28
+	credentialAmount := 3
 
 	// Create local signer and issuer
 	ls, err := localsigner.NewFromString(testIssuerPkId, testIssuerPkXML, testIssuerSkXML)
@@ -52,24 +54,51 @@ func TestPreliminary(t *testing.T) {
 		t.Fatal("Could not issue credentials:", err.Error())
 	}
 
+	disclosureTime := time.Now().Unix()
 	creds, err := h.CreateCredentials(credBuilders, ccms)
 	if err != nil {
 		t.Fatal("Could not create credentials:", err.Error())
 	}
 
-	// Read and check
+	v := verifier.New(issuerPks)
 	for i := 0; i < credentialAmount; i++ {
+		// Read
 		readAttributes, credVersion, err := holder.ReadCredential(creds[i])
 		if err != nil {
 			t.Fatal("Could not read credential:", err.Error())
 		}
 
+		// Check
 		if credVersion != int(common.CredentialVersion[0]) {
 			t.Fatal("Incorrect credential version:", credVersion)
 		}
 
 		if !reflect.DeepEqual(credentialsAttributes[i], readAttributes) {
 			t.Fatal("Read attributes are not the same as those issued")
+		}
+
+		// Disclose
+		proofBase45, err := h.DiscloseAllWithTimeQREncoded(creds[i])
+		if err != nil {
+			t.Fatal("Could not disclosure credential")
+		}
+
+		// Verify
+		verifiedAttributes, verifiedDisclosureTime, err := v.VerifyQREncoded(proofBase45)
+		if err != nil {
+			t.Fatal("Could not verify attributes")
+		}
+
+		common.DebugSerializableStruct(credentialsAttributes[i])
+		common.DebugSerializableStruct(verifiedAttributes)
+
+		if !reflect.DeepEqual(credentialsAttributes[i], verifiedAttributes) {
+			t.Fatal("Verified attributes are not the same as those issued")
+		}
+
+		secondsDifference := int(math.Abs(float64(verifiedDisclosureTime - disclosureTime)))
+		if secondsDifference > 5 {
+			t.Fatal("Invalid verified disclosure time (or your test machine is really slow)")
 		}
 	}
 }

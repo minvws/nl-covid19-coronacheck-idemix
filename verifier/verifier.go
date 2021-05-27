@@ -3,17 +3,37 @@ package verifier
 import (
 	"encoding/asn1"
 	"github.com/go-errors/errors"
+	"github.com/minvws/base45-go/base45"
 	"github.com/minvws/nl-covid19-coronacheck-idemix/common"
 	"github.com/privacybydesign/gabi"
 	"github.com/privacybydesign/gabi/big"
 )
 
-func Verify(issuerPks map[string]*gabi.PublicKey, proofAsn1 []byte) (map[string]string, int64, error) {
+type Verifier struct {
+	issuerPks map[string]*gabi.PublicKey
+}
+
+func New(issuerPks map[string]*gabi.PublicKey) *Verifier {
+	return &Verifier{
+		issuerPks: issuerPks,
+	}
+}
+
+func (v *Verifier) VerifyQREncoded(proofBase45 []byte) (map[string]string, int64, error) {
+	proofAsn1, err := base45.Base45Decode(proofBase45)
+	if err != nil {
+		return nil, 0, errors.Errorf("Could not base45 decode proof")
+	}
+
+	return v.Verify(proofAsn1)
+}
+
+func (v *Verifier) Verify(proofAsn1 []byte) (map[string]string, int64, error) {
 	// Deserialize proof
 	ps := &common.ProofSerialization{}
 	_, err := asn1.Unmarshal(proofAsn1, ps)
 	if err != nil {
-		return nil, 0, errors.Errorf("Could not deserialize proof")
+		return nil, 0, errors.Errorf("Could not unmarshal proof")
 	}
 
 	// Make sure the amount of disclosure choices match the amount of attributes, plus secret key and metadata
@@ -64,9 +84,9 @@ func Verify(issuerPks map[string]*gabi.PublicKey, proofAsn1 []byte) (map[string]
 		return nil, 0, errors.Errorf("Could not unmarshal metadata attribute")
 	}
 
-	issuerPk, ok := issuerPks[credentialMetadata.IssuerPkId]
+	issuerPk, ok := v.issuerPks[credentialMetadata.IssuerPkId]
 	if !ok {
-		return nil, 0, errors.Errorf("Credential public key is unknown")
+		return nil, 0, errors.Errorf("Could not find public key referenced by credential")
 	}
 
 	// Create a proofD structure
@@ -98,7 +118,7 @@ func Verify(issuerPks map[string]*gabi.PublicKey, proofAsn1 []byte) (map[string]
 			continue
 		}
 
-		attributeType := common.AttributeTypesV1[disclosureIndex-2]
+		attributeType := common.AttributeTypesV2[disclosureIndex-2]
 		attributes[attributeType] = string(common.DecodeAttributeInt(d))
 	}
 
