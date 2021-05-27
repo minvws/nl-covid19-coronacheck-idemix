@@ -19,6 +19,6 @@ func Execute() {
 }
 
 func exitWithError(err error) {
-	_, _ = fmt.Fprintf(os.Stderr, err.Error())
+	_, _ = fmt.Fprint(os.Stderr, err.Error())
 	os.Exit(1)
 }

@@ -23,8 +23,9 @@ type server struct {
 	issuer *issuer.Issuer
 }
 
-// TODO: Move this into the call to prepareIssue
-var magicAmountOfCredentials = 28
+type PrepareIssueRequest struct {
+	CredentialAmount int
+}
 
 func Run(config *Configuration) error {
 	// Create local signer and issuer
@@ -65,10 +66,27 @@ func (s *server) Serve() error {
 
 func (s *server) buildHandler() *http.ServeMux {
 	handler := http.NewServeMux()
-	handler.HandleFunc("/prepare_issue", s.handlePrepareIssue)
-	handler.HandleFunc("/issue", s.handleIssue)
+	handler.Handle("/prepare_issue", jsonPostHandler(http.HandlerFunc(s.handlePrepareIssue)))
+	handler.Handle("/issue", jsonPostHandler(http.HandlerFunc(s.handleIssue)))
 
 	return handler
+}
+
+func jsonPostHandler(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "POST" {
+			writeError(w, http.StatusMethodNotAllowed, errors.Errorf("Expected POST method"))
+			return
+		}
+
+		if r.Header.Get("Content-Type") != "application/json" {
+			writeError(w, http.StatusBadRequest, errors.Errorf("Expect application/json Content-Type"))
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		next.ServeHTTP(w, r)
+	})
 }
 
 func (s *server) handlePrepareIssue(w http.ResponseWriter, r *http.Request) {
@@ -80,19 +98,20 @@ func (s *server) handlePrepareIssue(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	pim, err := s.issuer.PrepareIssue(pir.credentialAmount)
+	pim, err := s.issuer.PrepareIssue(pir.CredentialAmount)
 	if err != nil {
-		writeError(w, err)
+		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
 
 	responseJson, err := json.Marshal(pim)
 	if err != nil {
-		writeError(w, errors.WrapPrefix(err, "Could not JSON marshal prepareIssueMessage", 0))
+		msg := "Could not JSON marshal prepareIssueMessage"
+		writeError(w, http.StatusInternalServerError, errors.WrapPrefix(err, msg, 0))
 		return
 	}
 
-	w.WriteHeader(200)
+	w.Header().Set("Content-Type", "application/json")
 	_, _ = w.Write(responseJson)
 }
 
@@ -100,32 +119,37 @@ func (s *server) handleIssue(w http.ResponseWriter, r *http.Request) {
 	issueMessage := &issuer.IssueMessage{}
 	err := json.NewDecoder(r.Body).Decode(issueMessage)
 	if err != nil {
-		writeError(w, errors.WrapPrefix(err, "Could not JSON unmarshal issueMessage", 0))
+		msg := "Could not JSON unmarshal issue message"
+		writeError(w, http.StatusBadRequest, errors.WrapPrefix(err, msg, 0))
 		return
 	}
 
 	// TODO: Better handle this with a separate unmarshaler
 	if issueMessage.CredentialsAttributes == nil || issueMessage.IssueCommitmentMessage == nil || issueMessage.PrepareIssueMessage == nil {
-		writeError(w, errors.Errorf("A required field of issueMessage is missing"))
+		msg := "A required field of issue message is missing"
+		writeError(w, http.StatusBadRequest, errors.Errorf(msg))
 		return
 	}
 
 	createCredentialMessages, err := s.issuer.Issue(issueMessage)
 	if err != nil {
-		writeError(w, errors.WrapPrefix(err, "Could not issue credentials", 0))
+		msg := "Could not issue credentials"
+		writeError(w, http.StatusInternalServerError, errors.WrapPrefix(err, msg, 0))
 		return
 	}
 
 	responseJson, err := json.Marshal(createCredentialMessages)
 	if err != nil {
-		writeError(w, errors.WrapPrefix(err, "Could not JSON marshal createCredentialMessages", 0))
+		msg := "Could not JSON marshal create credential message"
+		writeError(w, http.StatusInternalServerError, errors.WrapPrefix(err, msg, 0))
 		return
 	}
 
-	w.WriteHeader(200)
+	w.Header().Set("Content-Type", "application/json")
 	_, _ = w.Write(responseJson)
 }
 
-func writeError(w http.ResponseWriter, err error) {
-	http.Error(w, err.Error(), http.StatusInternalServerError)
+func writeError(w http.ResponseWriter, statusCode int, err error) {
+	fmt.Println(err.Error())
+	http.Error(w, err.Error(), statusCode)
 }
