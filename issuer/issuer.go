@@ -43,9 +43,11 @@ func (iss *Issuer) PrepareIssue(credentialAmount int) (*common.PrepareIssueMessa
 }
 
 func (iss *Issuer) Issue(im *IssueMessage) ([]*common.CreateCredentialMessage, error) {
+	// We need at least as much commitments as there are credentials issued
+	// Any additional commitments are just ignored
 	credentialAmount := len(im.CredentialsAttributes)
-	if credentialAmount != len(im.IssueCommitmentMessage.Proofs) {
-		return nil, errors.Errorf("The amount of commitments doesn't match amount of credentials")
+	if credentialAmount > len(im.IssueCommitmentMessage.Proofs) {
+		return nil, errors.Errorf("More credentials are being issued than commitments have been supplied")
 	}
 
 	// Build the metadata attribute that is present in every credential

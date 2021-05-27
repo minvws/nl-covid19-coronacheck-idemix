@@ -72,7 +72,15 @@ func (s *server) buildHandler() *http.ServeMux {
 }
 
 func (s *server) handlePrepareIssue(w http.ResponseWriter, r *http.Request) {
-	pim, err := s.issuer.PrepareIssue(magicAmountOfCredentials)
+	pir := &PrepareIssueRequest{}
+	err := json.NewDecoder(r.Body).Decode(pir)
+	if err != nil {
+		msg := "Could not JSON unmarshal prepare issue request"
+		writeError(w, http.StatusBadRequest, errors.WrapPrefix(err, msg, 0))
+		return
+	}
+
+	pim, err := s.issuer.PrepareIssue(pir.credentialAmount)
 	if err != nil {
 		writeError(w, err)
 		return
