@@ -20,22 +20,20 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v2
         with:
-            go-version: 1.15
+            go-version: 1.16
 
-      - name: Build Everything
-        run: go build -v ./...
-
-      - name: Build CInterop
-        run: go build -buildmode=c-shared -o issuer.dll issuer/cinterface/cinterface.go
+      - name: Build
+        run: go build -v -o release/coronacheck-idemix ./
 
       - name: Create version.json
-        run: 'echo "{ \"version\": \"${{ env.RELEASE_VERSION }}\", \"git_ref\": \"$GITHUB_SHA\"}" > version.json'
+        run: 'echo "{ \"version\": \"${{ env.RELEASE_VERSION }}\", \"git_ref\": \"$GITHUB_SHA\"}" > release/version.json'
 
       - name: Create tar
-        run: tar -czf ctcl_issuer_${{ env.RELEASE_VERSION }}.tar.gz ./issuer.dll ./issuer.h ./version.json
+        run: cd release && tar -czf ../coronacheck-idemix_${{ env.RELEASE_VERSION }}.tar.gz ./
 
       - name: Upload release tar
         uses: actions/upload-artifact@v1
         with:
-            name: ctcl_issuer_${{ env.RELEASE_VERSION }}
-            path: ctcl_issuer_${{ env.RELEASE_VERSION }}.tar.gz
+          name: coronacheck_idemix_${{ env.RELEASE_VERSION }}
+          path: coronacheck_idemix_${{ env.RELEASE_VERSION }}.tar.gz
+
