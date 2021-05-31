@@ -29,7 +29,7 @@ jobs:
         run: 'echo "{ \"version\": \"${{ env.RELEASE_VERSION }}\", \"git_ref\": \"$GITHUB_SHA\"}" > release/version.json'
 
       - name: Create tar
-        run: cd release && tar -czf ../coronacheck-idemix_${{ env.RELEASE_VERSION }}.tar.gz ./
+        run: cd release && tar -czf ../coronacheck_idemix_${{ env.RELEASE_VERSION }}.tar.gz ./
 
       - name: Upload release tar
         uses: actions/upload-artifact@v1
