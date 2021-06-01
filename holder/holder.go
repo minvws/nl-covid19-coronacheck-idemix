@@ -47,8 +47,8 @@ func (h *Holder) CreateCommitments(pim *common.PrepareIssueMessage) ([]gabi.Proo
 }
 
 func (h *Holder) CreateCredentials(credBuilders []gabi.ProofBuilder, ccms []*common.CreateCredentialMessage) ([]*gabi.Credential, error) {
-	credentialAmount := len(credBuilders)
-	if credentialAmount > len(ccms) {
+	credentialAmount := len(ccms)
+	if credentialAmount > len(credBuilders)  {
 		return nil, errors.Errorf("More credentials are being issued than there are proof builders")
 	}
 
