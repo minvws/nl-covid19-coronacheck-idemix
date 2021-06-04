@@ -31,7 +31,10 @@ func (h *Holder) DiscloseAllWithTime(holderSk *big.Int, cred *gabi.Credential) (
 		return nil, errors.Errorf("Invalid amount of credential attributes")
 	}
 
-	// The first attribute (which is the secret key) can never be disclosed
+	// Set the holderSk as first attribute of the credential
+	cred.Attributes[0] = holderSk
+
+	// The first attribute (which is the holder secret key) can never be disclosed
 	// The second attribute (which is the metadata attribute) is always disclosed
 	disclosureChoices := []bool{false, true}
 	disclosedIndices := []int{1}

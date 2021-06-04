@@ -57,6 +57,9 @@ func (h *Holder) CreateCredentials(credBuilders []gabi.ProofBuilder, ccms []*com
 			return nil, errors.WrapPrefix(err, "Could not construct credential", 0)
 		}
 
+		// Remove holder secret key from credential attributes
+		cred.Attributes[0] = nil
+
 		creds = append(creds, cred)
 	}
 
