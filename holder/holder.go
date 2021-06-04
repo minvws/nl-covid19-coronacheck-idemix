@@ -8,14 +8,12 @@ import (
 )
 
 type Holder struct {
-	holderSk  *big.Int
-	issuerPks map[string]*gabi.PublicKey
+	findIssuerPk common.FindIssuerPkFunc
 }
 
-func New(holderSk *big.Int, issuerPks map[string]*gabi.PublicKey) *Holder {
+func New(findIssuerPk common.FindIssuerPkFunc) *Holder {
 	return &Holder{
-		holderSk:  holderSk,
-		issuerPks: issuerPks,
+		findIssuerPk: findIssuerPk,
 	}
 }
 
@@ -23,7 +21,7 @@ func GenerateSk() *big.Int {
 	return common.RandomBigInt(common.GabiSystemParameters.Lm)
 }
 
-func (h *Holder) CreateCommitments(pim *common.PrepareIssueMessage) ([]gabi.ProofBuilder, *gabi.IssueCommitmentMessage, error) {
+func (h *Holder) CreateCommitments(holderSk *big.Int, pim *common.PrepareIssueMessage) ([]gabi.ProofBuilder, *gabi.IssueCommitmentMessage, error) {
 	issuerPk, err := h.findIssuerPk(pim.IssuerPkId)
 	if err != nil {
 		return nil, nil, err
@@ -33,7 +31,7 @@ func (h *Holder) CreateCommitments(pim *common.PrepareIssueMessage) ([]gabi.Proo
 
 	credBuilders := make([]gabi.ProofBuilder, 0, pim.CredentialAmount)
 	for i := 0; i < pim.CredentialAmount; i++ {
-		credBuilder := gabi.NewCredentialBuilder(issuerPk, common.BigOne, h.holderSk, holderNonce, []int{})
+		credBuilder := gabi.NewCredentialBuilder(issuerPk, common.BigOne, holderSk, holderNonce, []int{})
 		credBuilders = append(credBuilders, credBuilder)
 	}
 
@@ -48,7 +46,7 @@ func (h *Holder) CreateCommitments(pim *common.PrepareIssueMessage) ([]gabi.Proo
 
 func (h *Holder) CreateCredentials(credBuilders []gabi.ProofBuilder, ccms []*common.CreateCredentialMessage) ([]*gabi.Credential, error) {
 	credentialAmount := len(ccms)
-	if credentialAmount > len(credBuilders)  {
+	if credentialAmount > len(credBuilders) {
 		return nil, errors.Errorf("More credentials are being issued than there are proof builders")
 	}
 
@@ -85,15 +83,6 @@ func ReadCredential(cred *gabi.Credential) (attributes map[string]string, versio
 	}
 
 	return attributes, credentialVersion, nil
-}
-
-func (h *Holder) findIssuerPk(issuerPkId string) (*gabi.PublicKey, error) {
-	issuerPk, ok := h.issuerPks[issuerPkId]
-	if !ok {
-		return nil, errors.Errorf("Could not find public key id chosen by issuer")
-	}
-
-	return issuerPk, nil
 }
 
 func constructCredential(credBuilder gabi.ProofBuilder, ccm *common.CreateCredentialMessage) (*gabi.Credential, error) {

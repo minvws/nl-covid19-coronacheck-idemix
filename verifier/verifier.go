@@ -10,7 +10,7 @@ import (
 )
 
 type Verifier struct {
-	issuerPks map[string]*gabi.PublicKey
+	findIssuerPk common.FindIssuerPkFunc
 }
 
 type VerifiedCredential struct {
@@ -20,9 +20,9 @@ type VerifiedCredential struct {
 	CredentialVersion int
 }
 
-func New(issuerPks map[string]*gabi.PublicKey) *Verifier {
+func New(findIssuerPk common.FindIssuerPkFunc) *Verifier {
 	return &Verifier{
-		issuerPks: issuerPks,
+		findIssuerPk: findIssuerPk,
 	}
 }
 
@@ -88,9 +88,9 @@ func (v *Verifier) Verify(proofAsn1 []byte) (*VerifiedCredential, error) {
 		return nil, err
 	}
 
-	issuerPk, ok := v.issuerPks[issuerPkId]
-	if !ok {
-		return nil, errors.Errorf("Could not find public key referenced by credential")
+	issuerPk, err := v.findIssuerPk(issuerPkId)
+	if err != nil {
+		return nil, err
 	}
 
 	// Create a proofD structure

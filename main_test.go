@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/go-errors/errors"
 	"github.com/minvws/nl-covid19-coronacheck-idemix/common"
 	"github.com/minvws/nl-covid19-coronacheck-idemix/holder"
 	"github.com/minvws/nl-covid19-coronacheck-idemix/issuer"
@@ -26,9 +27,18 @@ func TestPreliminary(t *testing.T) {
 	iss := issuer.New(ls)
 	issuerPks := map[string]*gabi.PublicKey{testIssuerPkId: ls.Pk}
 
+	findIssuerPk := func(issuerPkId string) (*gabi.PublicKey, error) {
+		issuerPk, ok := issuerPks[issuerPkId]
+		if !ok {
+			return nil, errors.Errorf("Could not find public key id chosen by issuer")
+		}
+
+		return issuerPk, nil
+	}
+
 	// Create holder
 	holderSk := holder.GenerateSk()
-	h := holder.New(holderSk, issuerPks)
+	h := holder.New(findIssuerPk)
 
 	// Issuance dance
 	pim, err := iss.PrepareIssue(credentialAmount)
@@ -36,7 +46,7 @@ func TestPreliminary(t *testing.T) {
 		t.Fatal("Could not get prepareIssueMessage:", err.Error())
 	}
 
-	credBuilders, icm, err := h.CreateCommitments(pim)
+	credBuilders, icm, err := h.CreateCommitments(holderSk, pim)
 	if err != nil {
 		t.Fatal("Could not create credential commitments:", err.Error())
 	}
@@ -60,7 +70,7 @@ func TestPreliminary(t *testing.T) {
 		t.Fatal("Could not create credentials:", err.Error())
 	}
 
-	v := verifier.New(issuerPks)
+	v := verifier.New(findIssuerPk)
 	for i := 0; i < credentialAmount; i++ {
 		// Read
 		readAttributes, credVersion, err := holder.ReadCredential(creds[i])
@@ -78,7 +88,7 @@ func TestPreliminary(t *testing.T) {
 		}
 
 		// Disclose
-		proofBase45, err := h.DiscloseAllWithTimeQREncoded(creds[i])
+		proofBase45, err := h.DiscloseAllWithTimeQREncoded(holderSk, creds[i])
 		if err != nil {
 			t.Fatal("Could not disclosure credential:", err.Error())
 		}

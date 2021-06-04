@@ -6,11 +6,12 @@ import (
 	"github.com/minvws/base45-go/base45"
 	"github.com/minvws/nl-covid19-coronacheck-idemix/common"
 	"github.com/privacybydesign/gabi"
+	"github.com/privacybydesign/gabi/big"
 	"time"
 )
 
-func (h *Holder) DiscloseAllWithTimeQREncoded(cred *gabi.Credential) ([]byte, error) {
-	proofAsn1, err := h.DiscloseAllWithTime(cred)
+func (h *Holder) DiscloseAllWithTimeQREncoded(holderSk *big.Int, cred *gabi.Credential) ([]byte, error) {
+	proofAsn1, err := h.DiscloseAllWithTime(holderSk, cred)
 	if err != nil {
 		return nil, err
 	}
@@ -24,7 +25,7 @@ func (h *Holder) DiscloseAllWithTimeQREncoded(cred *gabi.Credential) ([]byte, er
 	return proofBase45, nil
 }
 
-func (h *Holder) DiscloseAllWithTime(cred *gabi.Credential) ([]byte, error) {
+func (h *Holder) DiscloseAllWithTime(holderSk *big.Int, cred *gabi.Credential) ([]byte, error) {
 	attributesAmount := len(cred.Attributes)
 	if attributesAmount < 2 {
 		return nil, errors.Errorf("Invalid amount of credential attributes")
