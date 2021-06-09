@@ -79,7 +79,7 @@ func TestPreliminary(t *testing.T) {
 		}
 
 		// Check
-		if credVersion != int(common.CredentialVersion[0]) {
+		if credVersion != int(common.CredentialVersion) {
 			t.Fatal("Incorrect credential version:", credVersion)
 		}
 
@@ -112,8 +112,8 @@ func TestPreliminary(t *testing.T) {
 			t.Fatal("Incorrect issuer public key id:", verifiedCred.IssuerPkId)
 		}
 
-		if verifiedCred.CredentialVersion != int(common.CredentialVersion[0]) {
-			t.Fatal("Incorrect redential version:", verifiedCred.CredentialVersion)
+		if verifiedCred.CredentialVersion != common.CredentialVersion {
+			t.Fatal("Incorrect credential version:", verifiedCred.CredentialVersion)
 		}
 	}
 }

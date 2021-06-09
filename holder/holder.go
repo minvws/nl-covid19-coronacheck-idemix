@@ -60,6 +60,16 @@ func (h *Holder) CreateCredentials(credBuilders []gabi.ProofBuilder, ccms []*com
 		// Remove holder secret key from credential attributes
 		cred.Attributes[0] = nil
 
+		// Read credential to verify its version
+		_, version, err := ReadCredential(cred)
+		if err != nil {
+			return nil, errors.WrapPrefix(err, "Could not read freshly contructed credential", 0)
+		}
+
+		if version != common.CredentialVersion {
+			return nil, errors.Errorf("Invalid credential version in freshly constructed credential")
+		}
+
 		creds = append(creds, cred)
 	}
 
@@ -67,22 +77,29 @@ func (h *Holder) CreateCredentials(credBuilders []gabi.ProofBuilder, ccms []*com
 }
 
 func ReadCredential(cred *gabi.Credential) (attributes map[string]string, version int, err error) {
-	attributeAmount := len(cred.Attributes) - 2
-	if attributeAmount != len(common.AttributeTypesV2) {
+	// Validate that at least the secret key and metadata attribute is present
+	attributeAmount := len(cred.Attributes)
+	if attributeAmount < 2 {
 		return nil, 0, errors.Errorf("Unexpected amount of attributes in credential")
+	}
+
+	// Decode metadata to retrieve credential version and attribute types
+	credentialVersion, _, attributeTypes, err := common.DecodeMetadataAttribute(cred.Attributes[1])
+	if err != nil {
+		return nil, 0, err
+	}
+
+	// Verify amount of named attributes
+	namedAttributeAmount := attributeAmount - 2
+	if namedAttributeAmount != len(attributeTypes) {
+		return nil, 0, errors.Errorf("Unexpected amount of named attributes in credential")
 	}
 
 	// Decode and insert every attribute
 	attributes = make(map[string]string)
-	for i := 0; i < attributeAmount; i++ {
-		attributeType := common.AttributeTypesV2[i]
+	for i := 0; i < namedAttributeAmount; i++ {
+		attributeType := attributeTypes[i]
 		attributes[attributeType] = string(common.DecodeAttributeInt(cred.Attributes[i+2]))
-	}
-
-	// Decode metadata to retrieve credential version
-	credentialVersion, _, err := common.DecodeMetadataAttribute(cred.Attributes[1])
-	if err != nil {
-		return nil, 0, err
 	}
 
 	return attributes, credentialVersion, nil

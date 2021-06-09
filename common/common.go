@@ -16,8 +16,10 @@ import (
 var BigOne = big.NewInt(1)
 var GabiSystemParameters = gabi.DefaultSystemParameters[2048]
 
+var CredentialVersion = 2
+
 var ProofSerializationVersion = []byte{0x00, 0x01, 'N', 'L'}
-var CredentialVersion = []byte{2}
+var CredentialVersionBytes = []byte{byte(CredentialVersion)}
 
 var AttributeTypesV1 = []string{
 	"isSpecimen",
@@ -137,19 +139,28 @@ func CalculateTimeBasedChallenge(unixTimeSeconds int64) *big.Int {
 	return new(big.Int).SetBytes(timeHash[:challengeByteSize])
 }
 
-func DecodeMetadataAttribute(metadataAttribute *big.Int) (credentialVersion int, issuerPkId string, err error) {
+func DecodeMetadataAttribute(metadataAttribute *big.Int) (credentialVersion int, issuerPkId string, attributeTypes []string, err error) {
 	credentialMetadata := &CredentialMetadataSerialization{}
 
 	attributeBytes := DecodeAttributeInt(metadataAttribute)
 	_, err = asn1.Unmarshal(attributeBytes, credentialMetadata)
 	if err != nil {
-		return 0, "", errors.WrapPrefix(err, "Could not unmarshal metadata attribute", 0)
+		return 0, "", nil, errors.WrapPrefix(err, "Could not unmarshal metadata attribute", 0)
 	}
 
 	// The credential version is defined to always be a single byte
 	credentialVersion = int(credentialMetadata.CredentialVersion[0])
 
-	return credentialVersion, credentialMetadata.IssuerPkId, nil
+	// Determine attribute types for the credential version
+	if credentialVersion == 1 {
+		attributeTypes = AttributeTypesV1
+	} else if credentialVersion == 2 {
+		attributeTypes = AttributeTypesV2
+	} else {
+		return 0, "", nil, errors.Errorf("Unrecognized credential version")
+	}
+
+	return credentialVersion, credentialMetadata.IssuerPkId, attributeTypes,nil
 }
 
 func DebugSerializableStruct(s interface{}) {

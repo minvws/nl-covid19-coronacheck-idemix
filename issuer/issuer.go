@@ -106,7 +106,7 @@ func (iss *Issuer) Issue(im *IssueMessage) ([]*common.CreateCredentialMessage, e
 
 func buildMetadataAttribute(issuerPkId string) (metadataAttribute []byte, err error) {
 	metadataAttribute, err = asn1.Marshal(common.CredentialMetadataSerialization{
-		CredentialVersion: common.CredentialVersion,
+		CredentialVersion: common.CredentialVersionBytes,
 		IssuerPkId:        issuerPkId,
 	})
 

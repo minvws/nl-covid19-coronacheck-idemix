@@ -43,9 +43,20 @@ func (v *Verifier) Verify(proofAsn1 []byte) (*VerifiedCredential, error) {
 		return nil, errors.Errorf("Could not unmarshal proof")
 	}
 
+	// Decode metadata attribute up front, separate from the rest of the logic
+	// It must be the first disclosed attribute
+	if len(ps.ADisclosed) < 1 {
+		return nil, errors.Errorf("The metadata attribute must be disclosed")
+	}
+
+	credentialVersion, issuerPkId, attributeTypes, err := common.DecodeMetadataAttribute(big.Convert(ps.ADisclosed[0]))
+	if err != nil {
+		return nil, err
+	}
+
 	// Make sure the amount of disclosure choices match the amount of attributes, plus secret key and metadata
-	numAttributes := len(common.AttributeTypesV1) + 2
-	if len(ps.DisclosureChoices) != numAttributes {
+	attributeAmount := len(attributeTypes) + 2
+	if len(ps.DisclosureChoices) != attributeAmount {
 		return nil, errors.Errorf("Invalid amount of disclosure choices")
 	}
 
@@ -82,12 +93,6 @@ func (v *Verifier) Verify(proofAsn1 []byte) (*VerifiedCredential, error) {
 		}
 	}
 
-	// Retrieve the metadata attribute and get the correct public key
-	credentialVersion, issuerPkId, err := common.DecodeMetadataAttribute(aDisclosed[1])
-	if err != nil {
-		return nil, err
-	}
-
 	issuerPk, err := v.findIssuerPk(issuerPkId)
 	if err != nil {
 		return nil, err
@@ -122,7 +127,7 @@ func (v *Verifier) Verify(proofAsn1 []byte) (*VerifiedCredential, error) {
 			continue
 		}
 
-		attributeType := common.AttributeTypesV2[disclosureIndex-2]
+		attributeType := attributeTypes[disclosureIndex-2]
 		attributes[attributeType] = string(common.DecodeAttributeInt(d))
 	}
 
