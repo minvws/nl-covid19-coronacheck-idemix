@@ -160,7 +160,7 @@ func DecodeMetadataAttribute(metadataAttribute *big.Int) (credentialVersion int,
 		return 0, "", nil, errors.Errorf("Unrecognized credential version")
 	}
 
-	return credentialVersion, credentialMetadata.IssuerPkId, attributeTypes,nil
+	return credentialVersion, credentialMetadata.IssuerPkId, attributeTypes, nil
 }
 
 func DebugSerializableStruct(s interface{}) {
