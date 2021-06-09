@@ -10,8 +10,8 @@ import (
 	"time"
 )
 
-func (h *Holder) DiscloseAllWithTimeQREncoded(holderSk *big.Int, cred *gabi.Credential) ([]byte, error) {
-	proofAsn1, err := h.DiscloseAllWithTime(holderSk, cred)
+func (h *Holder) DiscloseAllWithTimeQREncoded(holderSk *big.Int, cred *gabi.Credential, now time.Time) ([]byte, error) {
+	proofAsn1, err := h.DiscloseAllWithTime(holderSk, cred, now)
 	if err != nil {
 		return nil, err
 	}
@@ -25,7 +25,7 @@ func (h *Holder) DiscloseAllWithTimeQREncoded(holderSk *big.Int, cred *gabi.Cred
 	return proofBase45, nil
 }
 
-func (h *Holder) DiscloseAllWithTime(holderSk *big.Int, cred *gabi.Credential) ([]byte, error) {
+func (h *Holder) DiscloseAllWithTime(holderSk *big.Int, cred *gabi.Credential, now time.Time) ([]byte, error) {
 	attributesAmount := len(cred.Attributes)
 	if attributesAmount < 2 {
 		return nil, errors.Errorf("Invalid amount of credential attributes")
@@ -52,7 +52,7 @@ func (h *Holder) DiscloseAllWithTime(holderSk *big.Int, cred *gabi.Credential) (
 
 	// Use the time as 'challenge' (that can be precomputed and replayed, indeed)
 	ps := common.ProofSerialization{}
-	ps.UnixTimeSeconds = time.Now().Unix()
+	ps.UnixTimeSeconds = now.Unix()
 
 	challenge := common.CalculateTimeBasedChallenge(ps.UnixTimeSeconds)
 

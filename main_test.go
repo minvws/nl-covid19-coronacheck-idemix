@@ -79,7 +79,7 @@ func TestPreliminary(t *testing.T) {
 		}
 
 		// Disclose
-		proofBase45, err := h.DiscloseAllWithTimeQREncoded(holderSk, creds[i])
+		proofBase45, err := h.DiscloseAllWithTimeQREncoded(holderSk, creds[i], time.Now())
 		if err != nil {
 			t.Fatal("Could not disclosure credential:", err.Error())
 		}
@@ -143,7 +143,7 @@ func TestV1QRFlow(t *testing.T) {
 	v1Cred.Attributes[0] = nil
 
 	h := holder.New(findIssuerPk)
-	v1QR, err := h.DiscloseAllWithTimeQREncoded(holderSk, v1Cred)
+	v1QR, err := h.DiscloseAllWithTimeQREncoded(holderSk, v1Cred, time.Now())
 	if err != nil {
 		t.Fatal("Could not disclose v1 credential")
 	}
