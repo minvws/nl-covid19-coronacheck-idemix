@@ -17,9 +17,9 @@ var BigOne = big.NewInt(1)
 var GabiSystemParameters = gabi.DefaultSystemParameters[2048]
 
 var CredentialVersion = 2
-
-var ProofSerializationVersion = []byte{0x00, 0x01, 'N', 'L'}
 var CredentialVersionBytes = []byte{byte(CredentialVersion)}
+
+var ProofVersionByte byte = '2'
 
 var AttributeTypesV1 = []string{
 	"isSpecimen",
@@ -51,16 +51,26 @@ type CredentialMetadataSerialization struct {
 	IssuerPkId string
 }
 
-type ProofSerialization struct {
-	Version           []byte
-	UnixTimeSeconds   int64
-	DisclosureChoices []bool
-	C                 *gobig.Int
-	A                 *gobig.Int
-	EResponse         *gobig.Int
-	VResponse         *gobig.Int
-	AResponses        []*gobig.Int
-	ADisclosed        []*gobig.Int
+type ProofSerializationV1 struct {
+	Version               []byte
+	DisclosureTimeSeconds int64
+	DisclosureChoices     []bool
+	C                     *gobig.Int
+	A                     *gobig.Int
+	EResponse             *gobig.Int
+	VResponse             *gobig.Int
+	AResponses            []*gobig.Int
+	ADisclosed            []*gobig.Int
+}
+
+type ProofSerializationV2 struct {
+	DisclosureTimeSeconds int64
+	C                     *gobig.Int
+	A                     *gobig.Int
+	EResponse             *gobig.Int
+	VResponse             *gobig.Int
+	AResponse             *gobig.Int
+	ADisclosed            []*gobig.Int
 }
 
 type FindIssuerPkFunc func(kid string) (pk *gabi.PublicKey, err error)

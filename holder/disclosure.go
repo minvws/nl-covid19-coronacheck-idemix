@@ -22,7 +22,11 @@ func (h *Holder) DiscloseAllWithTimeQREncoded(holderSk *big.Int, cred *gabi.Cred
 		return nil, errors.WrapPrefix(err, "Could not base45 encode proof", 0)
 	}
 
-	return proofBase45, nil
+	// Add prefix
+	prefix := []byte{'N', 'L', common.ProofVersionByte, ':'}
+	proofPrefixed := append(prefix, proofBase45...)
+
+	return proofPrefixed, nil
 }
 
 func (h *Holder) DiscloseAllWithTime(holderSk *big.Int, cred *gabi.Credential, now time.Time) ([]byte, error) {
@@ -34,16 +38,6 @@ func (h *Holder) DiscloseAllWithTime(holderSk *big.Int, cred *gabi.Credential, n
 	// Set the holderSk as first attribute of the credential
 	cred.Attributes[0] = holderSk
 
-	// The first attribute (which is the holder secret key) can never be disclosed
-	// The second attribute (which is the metadata attribute) is always disclosed
-	disclosureChoices := []bool{false, true}
-	disclosedIndices := []int{1}
-
-	for i := 2; i < attributesAmount; i++ {
-		disclosureChoices = append(disclosureChoices, true)
-		disclosedIndices = append(disclosedIndices, i)
-	}
-
 	// Retrieve the public key from the credential metadata
 	err := h.setCredentialPublicKey(cred)
 	if err != nil {
@@ -51,12 +45,15 @@ func (h *Holder) DiscloseAllWithTime(holderSk *big.Int, cred *gabi.Credential, n
 	}
 
 	// Use the time as 'challenge' (that can be precomputed and replayed, indeed)
-	ps := common.ProofSerialization{}
-	ps.UnixTimeSeconds = now.Unix()
+	disclosureTimeSeconds := now.Unix()
+	challenge := common.CalculateTimeBasedChallenge(disclosureTimeSeconds)
 
-	challenge := common.CalculateTimeBasedChallenge(ps.UnixTimeSeconds)
+	// Build proof that discloses all attributes except the secret key
+	var disclosedIndices []int
+	for i := 1; i < attributesAmount; i++ {
+		disclosedIndices = append(disclosedIndices, i)
+	}
 
-	// Build proof
 	var dpbs gabi.ProofBuilderList
 	dpb, err := cred.CreateDisclosureProofBuilder(disclosedIndices, false)
 	if err != nil {
@@ -73,19 +70,17 @@ func (h *Holder) DiscloseAllWithTime(holderSk *big.Int, cred *gabi.Credential, n
 	proof := proofList[0].(*gabi.ProofD)
 
 	// Serialize proof inside an asn.1 structure
-	ps.Version = common.ProofSerializationVersion
-	ps.DisclosureChoices = disclosureChoices
-	ps.C = proof.C.Go()
-	ps.A = proof.A.Go()
-	ps.EResponse = proof.EResponse.Go()
-	ps.VResponse = proof.VResponse.Go()
+	ps := common.ProofSerializationV2{
+		DisclosureTimeSeconds: disclosureTimeSeconds,
+		C:                     proof.C.Go(),
+		A:                     proof.A.Go(),
+		EResponse:             proof.EResponse.Go(),
+		VResponse:             proof.VResponse.Go(),
+		AResponse:             proof.AResponses[0].Go(),
+	}
 
-	for i, disclosed := range disclosureChoices {
-		if disclosed {
-			ps.ADisclosed = append(ps.ADisclosed, proof.ADisclosed[i].Go())
-		} else {
-			ps.AResponses = append(ps.AResponses, proof.AResponses[i].Go())
-		}
+	for i := 1; i < attributesAmount; i++ {
+		ps.ADisclosed = append(ps.ADisclosed, proof.ADisclosed[i].Go())
 	}
 
 	proofAsn1, err := asn1.Marshal(ps)

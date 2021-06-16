@@ -14,10 +14,10 @@ type Verifier struct {
 }
 
 type VerifiedCredential struct {
-	Attributes        map[string]string
-	UnixTimeSeconds   int64
-	IssuerPkId        string
-	CredentialVersion int
+	Attributes            map[string]string
+	DisclosureTimeSeconds int64
+	IssuerPkId            string
+	CredentialVersion     int
 }
 
 func New(findIssuerPk common.FindIssuerPkFunc) *Verifier {
@@ -26,18 +26,44 @@ func New(findIssuerPk common.FindIssuerPkFunc) *Verifier {
 	}
 }
 
-func (v *Verifier) VerifyQREncoded(proofBase45 []byte) (*VerifiedCredential, error) {
-	proofAsn1, err := base45.Base45Decode(proofBase45)
-	if err != nil {
-		return nil, errors.Errorf("Could not base45 decode proof")
+func (v *Verifier) VerifyQREncoded(proof []byte) (*VerifiedCredential, error) {
+	// Verify with the v2 proof serialization format
+	proofVersionByte, proofBase45, err := extractProofVersion(proof)
+	if err == nil {
+		if proofVersionByte != common.ProofVersionByte {
+			return nil, errors.Errorf("Unsupported proof version")
+		}
+
+		proofAsn1, err := base45.Base45Decode(proofBase45)
+		if err != nil {
+			return nil, errors.Errorf("Could not base45 decode v2 proof")
+		}
+
+		verifiedCredential, err := v.VerifyV2(proofAsn1)
+		if err != nil {
+			return nil, errors.WrapPrefix(err, "Could not verify v2 proof", 0)
+		}
+
+		return verifiedCredential, nil
 	}
 
-	return v.Verify(proofAsn1)
+	// Try to verify with the v1 serialization
+	proofAsn1, err := base45.Base45Decode(proof)
+	if err != nil {
+		return nil, errors.Errorf("Could not base45 decode v1 proof")
+	}
+
+	verifiedCredential, err := v.VerifyV1(proofAsn1)
+	if err != nil {
+		return nil, errors.WrapPrefix(err, "Could not verify v1 proof", 0)
+	}
+
+	return verifiedCredential, nil
 }
 
-func (v *Verifier) Verify(proofAsn1 []byte) (*VerifiedCredential, error) {
+func (v *Verifier) VerifyV1(proofAsn1 []byte) (*VerifiedCredential, error) {
 	// Deserialize proof
-	ps := &common.ProofSerialization{}
+	ps := &common.ProofSerializationV1{}
 	_, err := asn1.Unmarshal(proofAsn1, ps)
 	if err != nil {
 		return nil, errors.Errorf("Could not unmarshal proof")
@@ -49,7 +75,7 @@ func (v *Verifier) Verify(proofAsn1 []byte) (*VerifiedCredential, error) {
 		return nil, errors.Errorf("The metadata attribute must be disclosed")
 	}
 
-	credentialVersion, issuerPkId, attributeTypes, err := common.DecodeMetadataAttribute(big.Convert(ps.ADisclosed[0]))
+	_, _, attributeTypes, err := common.DecodeMetadataAttribute(big.Convert(ps.ADisclosed[0]))
 	if err != nil {
 		return nil, err
 	}
@@ -93,11 +119,6 @@ func (v *Verifier) Verify(proofAsn1 []byte) (*VerifiedCredential, error) {
 		}
 	}
 
-	issuerPk, err := v.findIssuerPk(issuerPkId)
-	if err != nil {
-		return nil, err
-	}
-
 	// Create a proofD structure
 	proof := &gabi.ProofD{
 		C:          big.Convert(ps.C),
@@ -108,11 +129,70 @@ func (v *Verifier) Verify(proofAsn1 []byte) (*VerifiedCredential, error) {
 		ADisclosed: aDisclosed,
 	}
 
+	return v.VerifyCommon(proof, ps.DisclosureTimeSeconds)
+}
+
+func (v *Verifier) VerifyV2(proofAsn1 []byte) (*VerifiedCredential, error) {
+	// Deserialize proof
+	ps := &common.ProofSerializationV2{}
+	_, err := asn1.Unmarshal(proofAsn1, ps)
+	if err != nil {
+		return nil, errors.Errorf("Could not unmarshal proof")
+	}
+
+	// Decode metadata attribute
+	disclosedAmount := len(ps.ADisclosed)
+	if disclosedAmount < 1 {
+		return nil, errors.Errorf("The metadata attribute must be disclosed")
+	}
+
+	_, _, attributeTypes, err := common.DecodeMetadataAttribute(big.Convert(ps.ADisclosed[0]))
+	if err != nil {
+		return nil, err
+	}
+
+	// See if there are enough disclosures, including the metadata attribute
+	namedAttributeAmount := len(attributeTypes)
+	if disclosedAmount != namedAttributeAmount+1 {
+		return nil, errors.Errorf("Invalid amount of disclosures; expected %d disclosures", namedAttributeAmount)
+	}
+
+	// Build proof
+	aDisclosed := map[int]*big.Int{}
+	for i := 0; i < disclosedAmount; i++ {
+		aDisclosed[i+1] = big.Convert(ps.ADisclosed[i])
+	}
+
+	proof := &gabi.ProofD{
+		C:          big.Convert(ps.C),
+		A:          big.Convert(ps.A),
+		EResponse:  big.Convert(ps.EResponse),
+		VResponse:  big.Convert(ps.VResponse),
+		AResponses: map[int]*big.Int{0: big.Convert(ps.AResponse)},
+		ADisclosed: aDisclosed,
+	}
+
+	return v.VerifyCommon(proof, ps.DisclosureTimeSeconds)
+}
+
+func (v *Verifier) VerifyCommon(proof *gabi.ProofD, disclosureTimeSeconds int64) (*VerifiedCredential, error) {
+	// Get metadata attribute (again)
+	credentialVersion, issuerPkId, attributeTypes, err := common.DecodeMetadataAttribute(proof.ADisclosed[1])
+	if err != nil {
+		return nil, err
+	}
+
+	// Find public key
+	issuerPk, err := v.findIssuerPk(issuerPkId)
+	if err != nil {
+		return nil, err
+	}
+
+	// Verify with the given timestamp
 	var proofList gabi.ProofList
 	proofList = append(proofList, proof)
 
-	// Verify with the given timestamp
-	timeBasedChallenge := common.CalculateTimeBasedChallenge(ps.UnixTimeSeconds)
+	timeBasedChallenge := common.CalculateTimeBasedChallenge(disclosureTimeSeconds)
 	valid := proofList.Verify([]*gabi.PublicKey{issuerPk}, common.BigOne, timeBasedChallenge, false, []string{})
 
 	if !valid {
@@ -121,7 +201,7 @@ func (v *Verifier) Verify(proofAsn1 []byte) (*VerifiedCredential, error) {
 
 	// Retrieve attribute values
 	attributes := make(map[string]string)
-	for disclosureIndex, d := range aDisclosed {
+	for disclosureIndex, d := range proof.ADisclosed {
 		// Exclude metadata attribute
 		if disclosureIndex == 1 {
 			continue
@@ -132,9 +212,31 @@ func (v *Verifier) Verify(proofAsn1 []byte) (*VerifiedCredential, error) {
 	}
 
 	return &VerifiedCredential{
-		Attributes:        attributes,
-		UnixTimeSeconds:   ps.UnixTimeSeconds,
-		IssuerPkId:        issuerPkId,
-		CredentialVersion: credentialVersion,
+		Attributes:            attributes,
+		DisclosureTimeSeconds: disclosureTimeSeconds,
+		IssuerPkId:            issuerPkId,
+		CredentialVersion:     credentialVersion,
 	}, nil
+}
+
+func HasNLPrefix(bts []byte) bool {
+	_, _, err := extractProofVersion(bts)
+	return err == nil
+}
+
+func extractProofVersion(proofPrefixed []byte) (proofVersionByte byte, proofBase45 []byte, err error) {
+	if len(proofPrefixed) < 4 {
+		return 0x00, nil, errors.Errorf("Could not process abnormally short QR")
+	}
+
+	if proofPrefixed[0] != 'N' || proofPrefixed[1] != 'L' || proofPrefixed[3] != ':' {
+		return 0x00, nil, errors.Errorf("QR is not prefixed as an NL entry proof")
+	}
+
+	proofVersionByte = proofPrefixed[2]
+	if !((proofVersionByte >= '0' && proofVersionByte <= '9') || (proofVersionByte >= 'A' && proofVersionByte <= 'Z')) {
+		return 0x00, nil, errors.Errorf("QR has invalid context id byte")
+	}
+
+	return proofVersionByte, proofPrefixed[4:], nil
 }

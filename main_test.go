@@ -79,13 +79,13 @@ func TestPreliminary(t *testing.T) {
 		}
 
 		// Disclose
-		proofBase45, err := h.DiscloseAllWithTimeQREncoded(holderSk, creds[i], time.Now())
+		proofPrefixed, err := h.DiscloseAllWithTimeQREncoded(holderSk, creds[i], time.Now())
 		if err != nil {
 			t.Fatal("Could not disclosure credential:", err.Error())
 		}
 
 		// Verify
-		verifiedCred, err := v.VerifyQREncoded(proofBase45)
+		verifiedCred, err := v.VerifyQREncoded(proofPrefixed)
 		if err != nil {
 			t.Fatal("Could not verify disclosed credential:", err.Error())
 		}
@@ -94,7 +94,7 @@ func TestPreliminary(t *testing.T) {
 			t.Fatal("Verified attributes are not the same as those issued")
 		}
 
-		secondsDifference := int(math.Abs(float64(verifiedCred.UnixTimeSeconds - disclosureTime)))
+		secondsDifference := int(math.Abs(float64(verifiedCred.DisclosureTimeSeconds - disclosureTime)))
 		if secondsDifference > 5 {
 			t.Fatal("Invalid verified disclosure time (or your test machine is really slow):", secondsDifference)
 		}
@@ -151,7 +151,7 @@ func TestV1QRFlow(t *testing.T) {
 	v := verifier.New(findIssuerPk)
 	verifiedCred, err := v.VerifyQREncoded(v1QR)
 	if err != nil {
-		t.Fatal("Could not verify disclosed v1 credential")
+		t.Fatal("Could not verify disclosed v1 credential:", err.Error())
 	}
 
 	checkVerifiedV1Cred(t, verifiedCred)
