@@ -27,6 +27,10 @@ type PrepareIssueRequest struct {
 	CredentialAmount int
 }
 
+type IssueStaticResponse struct {
+	QR string `json:"qr"`
+}
+
 func Run(config *Configuration) error {
 	// Create local signer and issuer
 	var err error
@@ -67,7 +71,9 @@ func (s *server) Serve() error {
 func (s *server) buildHandler() *http.ServeMux {
 	handler := http.NewServeMux()
 	handler.Handle("/prepare_issue", jsonPostHandler(http.HandlerFunc(s.handlePrepareIssue)))
+
 	handler.Handle("/issue", jsonPostHandler(http.HandlerFunc(s.handleIssue)))
+	handler.Handle("/issue_static", jsonPostHandler(http.HandlerFunc(s.handleIssueStatic)))
 
 	return handler
 }
@@ -145,7 +151,32 @@ func (s *server) handleIssue(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
+	_, _ = w.Write(responseJson)
+}
+
+func (s *server) handleIssueStatic(w http.ResponseWriter, r *http.Request) {
+	sim := &issuer.StaticIssueMessage{}
+	err := json.NewDecoder(r.Body).Decode(sim)
+	if err != nil {
+		msg := "Could not JSON unmarshal static issue message"
+		writeError(w, http.StatusBadRequest, errors.WrapPrefix(err, msg, 0))
+		return
+	}
+
+	proofPrefixed, err := s.issuer.IssueStatic(sim)
+	if err != nil {
+		msg := "Could not issue static proof"
+		writeError(w, http.StatusInternalServerError, errors.WrapPrefix(err, msg, 0))
+		return
+	}
+
+	responseJson, err := json.Marshal(&IssueStaticResponse{QR: string(proofPrefixed)})
+	if err != nil {
+		msg := "Could not JSON marshal static proof"
+		writeError(w, http.StatusInternalServerError, errors.WrapPrefix(err, msg, 0))
+		return
+	}
+
 	_, _ = w.Write(responseJson)
 }
 

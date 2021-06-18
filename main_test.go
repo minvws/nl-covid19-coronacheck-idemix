@@ -9,6 +9,7 @@ import (
 	"github.com/minvws/nl-covid19-coronacheck-idemix/issuer/localsigner"
 	"github.com/minvws/nl-covid19-coronacheck-idemix/verifier"
 	"github.com/privacybydesign/gabi"
+	"github.com/privacybydesign/gabi/big"
 	"math"
 	"reflect"
 	"strconv"
@@ -18,18 +19,7 @@ import (
 
 func TestPreliminary(t *testing.T) {
 	credentialAmount := 3
-
-	// Create local signer and issuer
-	ls, err := localsigner.NewFromString(testIssuerPkId, testIssuerPkXML, testIssuerSkXML)
-	if err != nil {
-		t.Fatal("Could not create signer:", err.Error())
-	}
-
-	iss := issuer.New(ls)
-
-	// Create holder
-	holderSk := holder.GenerateSk()
-	h := holder.New(findIssuerPk)
+	iss, h, holderSk, v := createIHV(t)
 
 	// Issuance dance
 	pim, err := iss.PrepareIssue(credentialAmount)
@@ -61,7 +51,6 @@ func TestPreliminary(t *testing.T) {
 		t.Fatal("Could not create credentials:", err.Error())
 	}
 
-	v := verifier.New(findIssuerPk)
 	for i := 0; i < credentialAmount; i++ {
 		// Read
 		readAttributes, credVersion, err := holder.ReadCredential(creds[i])
@@ -109,6 +98,30 @@ func TestPreliminary(t *testing.T) {
 	}
 }
 
+func TestIssueStatic(t *testing.T) {
+	iss, _, _, v := createIHV(t)
+
+	attrs := buildCredentialsAttributes(1)[0]
+	attrs["stripType"] = "1"
+	attrs["validForHours"] = "2016"
+
+	proofPrefixed, err := iss.IssueStatic(&issuer.StaticIssueMessage{
+		CredentialAttributes: attrs,
+	})
+	if err != nil {
+		t.Fatal("Could not issue static credential", err.Error())
+	}
+
+	verifiedCred, err := v.VerifyQREncoded(proofPrefixed)
+	if err != nil {
+		t.Fatal("Could not verify freshly issues static credential", err.Error())
+	}
+
+	if !reflect.DeepEqual(attrs, verifiedCred.Attributes) {
+		t.Fatal("Verified attributes are not the same as those issued statically")
+	}
+}
+
 func TestV1QRFlow(t *testing.T) {
 	v1CredJSON := []byte(`
 		{
@@ -142,13 +155,13 @@ func TestV1QRFlow(t *testing.T) {
 	holderSk := v1Cred.Attributes[0]
 	v1Cred.Attributes[0] = nil
 
-	h := holder.New(findIssuerPk)
+	h := holder.New(holderFindIssuerPk)
 	v1QR, err := h.DiscloseAllWithTimeQREncoded(holderSk, v1Cred, time.Now())
 	if err != nil {
 		t.Fatal("Could not disclose v1 credential")
 	}
 
-	v := verifier.New(findIssuerPk)
+	v := verifier.New(holderFindIssuerPk)
 	verifiedCred, err := v.VerifyQREncoded(v1QR)
 	if err != nil {
 		t.Fatal("Could not verify disclosed v1 credential:", err.Error())
@@ -160,7 +173,7 @@ func TestV1QRFlow(t *testing.T) {
 func TestExistingV1Cred(t *testing.T) {
 	v1QR := []byte(`1BX CAI5N4OCRD:$4F*9XUYMQKH3%D01$6FGO8BRZ37SF+UA%MCRCAUF/ATZ70HT5JZWU87 3 .--XRP8$KWHFO7DWAONRTMKYXYMJNSPL9 G2MF9%N34KW8:MT6+LV$BTG.1TUKOG+.*SK5AM2F$60W%QLH% *1C5K73NTQRUVNHAW2$IMYACG+0 PNIVBG:2KN.UGF+04$*OKEL4GUNRU51OMIBRBEL39.IYJUCULG2SVM:RE1L00NZ%O:4Z+2/SIDSF2/UEY34K00LZD1 L..N:HIP8/H/ZOX:D99/6HN+R1LP3-2CCIS2EVDC6 OG-O./WZDI9 P7*CR7ROMIN+9+I6X%J L--:P3-BA+T.HTW59*QXQOAO305X0$8Y60:ZXS21GLHP18X%EO:EGS+$30 O27QQJKVP-NC1..GOFKH$GB -+Q9O+-QC1J848+*T-8ZY+H9BUXWZ+1-YCFVJ56IZGRS+KFZDHMVRNEWHL3+-N5CI9/:8E:2IG8:878SHD 8Z5VM8O*6.41QFORN3X FW10TVYHUZK  DM7H0/BT5JY3FBTU .U9+QYF8N-AIH1+4%3RM8-/V 3+5/.I-AV+WYT-39PG%DVOCPW9BIVKF6NVNIHL$PXQ02 M-5:/JHZGZ546ESJ/27L26OJI7*%SNCE45R%PF1T6:$0TVFQNH5GQ*:EX$TD3DKQXOIR0QPJF*%B$BDZ+IBQ*X1:2R%HPUZH*H0XFAMBK.HIK$USG*1%7NEEG:WJIDZ9IHD5*5O*ICXSE-DIC /*GJY2GBVR.C%4TF6 M-5K0PFI$I+/ 4S%0$:UHBK+$UE75K5XUN5S$FZ4:RZTRD%ZXO:JX0EBA/OQ84U52BRC*CJW8-5VW+Q%BHO+DAEFY:HQBIGD$9YLU:Y4AM7O/$40O: WP585G:O+ NP7/IXU1/QZTTX.:F:Q*B1$PE4YA2/2TXD AV+XY/0 B%K. XSD$-396VSK CLMW2JDX67K2JW4*X3$R5KP:3GY**1/WF29V7*ND4AZ7%YKHV8YZOIRDV$HWN$C-6Y4FYLFXWJ%89L*YT+L -E6FS5C F.TQ8WKOP8AY PL4Y+D-F61I2CSS0ODQ064*C*JX/M/MAR4EBG1YDWV.00NRUT- R3RDAR8+3+NQ9:XIG+O7976Z2.Q6- HHN6%G5VE8MNEKD-B+*TYR1N-RNQSPETE-G98CK:60OT-A2%7N$SELR$540.VZ8ZCXVZFHCP%0QX%TKOZCNKYZXM6WAEVWPC ROL$39FXUHO OS H$EKENBV/AO.S/3QH9PODD0HWAG5MKAV3ZX801QBZVC17BF/-I42/YECZZAL--VC9FYYAMDHPM8.YUY%PU9R7TU.A.A346KB`)
 
-	v := verifier.New(findIssuerPk)
+	v := verifier.New(holderFindIssuerPk)
 	verifiedCred, err := v.VerifyQREncoded(v1QR)
 	if err != nil {
 		t.Fatal("Could not verify v1 credential:", err.Error())
@@ -203,7 +216,33 @@ func buildCredentialsAttributes(credentialAmount int) []map[string]string {
 	return cas
 }
 
-func findIssuerPk(issuerPkId string) (*gabi.PublicKey, error) {
+func createIHV(t *testing.T) (*issuer.Issuer, *holder.Holder, *big.Int, *verifier.Verifier) {
+	iss := createIssuer(t)
+	h, holderSk := createHolder()
+	v := createVerifier()
+
+	return iss, h, holderSk, v
+}
+
+func createIssuer(t *testing.T) *issuer.Issuer {
+	ls, err := localsigner.NewFromString(testIssuerPkId, testIssuerPkXML, testIssuerSkXML)
+	if err != nil {
+		t.Fatal("Could not create signer:", err.Error())
+	}
+
+	return issuer.New(ls)
+}
+
+func createHolder() (*holder.Holder, *big.Int) {
+	holderSk := holder.GenerateSk()
+	return holder.New(holderFindIssuerPk), holderSk
+}
+
+func createVerifier() *verifier.Verifier {
+	return verifier.New(holderFindIssuerPk)
+}
+
+func holderFindIssuerPk(issuerPkId string) (*gabi.PublicKey, error) {
 	issuerPks := map[string]*gabi.PublicKey{testIssuerPkId: testIssuerPk}
 	issuerPk, ok := issuerPks[issuerPkId]
 	if !ok {

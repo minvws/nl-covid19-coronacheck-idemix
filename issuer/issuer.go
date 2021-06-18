@@ -4,13 +4,16 @@ import (
 	"encoding/asn1"
 	"github.com/go-errors/errors"
 	"github.com/minvws/nl-covid19-coronacheck-idemix/common"
+	"github.com/minvws/nl-covid19-coronacheck-idemix/holder"
 	"github.com/privacybydesign/gabi"
 	"github.com/privacybydesign/gabi/big"
+	"time"
 )
 
 type Signer interface {
 	PrepareSign() (pkId string, issuerNonce *big.Int, err error)
 	Sign(credentialsAttributeList [][]*big.Int, proofUs []*big.Int, holderNonce *big.Int) (isms []*gabi.IssueSignatureMessage, err error)
+	FindIssuerPk(kid string) (pk *gabi.PublicKey, err error)
 }
 
 type Issuer struct {
@@ -21,6 +24,10 @@ type IssueMessage struct {
 	PrepareIssueMessage    *common.PrepareIssueMessage  `json:"prepareIssueMessage"`
 	IssueCommitmentMessage *gabi.IssueCommitmentMessage `json:"issueCommitmentMessage"`
 	CredentialsAttributes  []map[string]string          `json:"credentialsAttributes"`
+}
+
+type StaticIssueMessage struct {
+	CredentialAttributes map[string]string `json:"credentialAttributes"`
 }
 
 func New(signer Signer) *Issuer {
@@ -102,6 +109,50 @@ func (iss *Issuer) Issue(im *IssueMessage) ([]*common.CreateCredentialMessage, e
 	}
 
 	return ccms, nil
+}
+
+func (iss *Issuer) IssueStatic(sim *StaticIssueMessage) ([]byte, error) {
+	// Prepare issuance
+	pim, err := iss.PrepareIssue(1)
+	if err != nil {
+		return nil, errors.WrapPrefix(err, "Could not create prepare issue message", 0)
+	}
+
+	// Create a single commitment
+	h := holder.New(iss.signer.FindIssuerPk)
+	holderSk := holder.GenerateSk()
+	credBuilders, icm, err := h.CreateCommitments(holderSk, pim)
+	if err != nil {
+		return nil, errors.WrapPrefix(err, "Could not create commitment", 0)
+	}
+
+	// Issue and create credentials
+	ccms, err := iss.Issue(&IssueMessage{
+		PrepareIssueMessage:    pim,
+		IssueCommitmentMessage: icm,
+		CredentialsAttributes:  []map[string]string{sim.CredentialAttributes},
+	})
+	if err != nil {
+		return nil, errors.WrapPrefix(err, "Could not issue static credential", 0)
+	}
+
+	creds, err := h.CreateCredentials(credBuilders, ccms)
+	if err != nil {
+		return nil, errors.WrapPrefix(err, "Could not create static credential", 0)
+	}
+
+	credAmount := len(creds)
+	if credAmount != 1 {
+		return nil, errors.Errorf("Expected only a single credential, got %d instead", credAmount)
+	}
+
+	// Disclose to create the QR, with a zero disclosure timestamp
+	proofPrefixed, err := h.DiscloseAllWithTimeQREncoded(holderSk, creds[0], time.Unix(0, 0))
+	if err != nil {
+		return nil, errors.WrapPrefix(err, "Could not disclose credential", 0)
+	}
+
+	return proofPrefixed, nil
 }
 
 func buildMetadataAttribute(issuerPkId string) (metadataAttribute []byte, err error) {

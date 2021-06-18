@@ -77,3 +77,11 @@ func (ls *LocalSigner) Sign(credentialsAttributes [][]*big.Int, proofUs []*big.I
 
 	return isms, nil
 }
+
+func (ls *LocalSigner) FindIssuerPk(kid string) (pk *gabi.PublicKey, err error) {
+	if kid != ls.PkId {
+		return nil, errors.Errorf("Could not find public key by key id")
+	}
+
+	return ls.Pk, nil
+}
