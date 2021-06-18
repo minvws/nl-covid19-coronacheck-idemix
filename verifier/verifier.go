@@ -39,7 +39,7 @@ func (v *Verifier) VerifyQREncoded(proof []byte) (*VerifiedCredential, error) {
 			return nil, errors.Errorf("Could not base45 decode v2 proof")
 		}
 
-		verifiedCredential, err := v.VerifyV2(proofAsn1)
+		verifiedCredential, err := v.verifyV2(proofAsn1)
 		if err != nil {
 			return nil, errors.WrapPrefix(err, "Could not verify v2 proof", 0)
 		}
@@ -53,7 +53,7 @@ func (v *Verifier) VerifyQREncoded(proof []byte) (*VerifiedCredential, error) {
 		return nil, errors.Errorf("Could not base45 decode v1 proof")
 	}
 
-	verifiedCredential, err := v.VerifyV1(proofAsn1)
+	verifiedCredential, err := v.verifyV1(proofAsn1)
 	if err != nil {
 		return nil, errors.WrapPrefix(err, "Could not verify v1 proof", 0)
 	}
@@ -61,7 +61,7 @@ func (v *Verifier) VerifyQREncoded(proof []byte) (*VerifiedCredential, error) {
 	return verifiedCredential, nil
 }
 
-func (v *Verifier) VerifyV1(proofAsn1 []byte) (*VerifiedCredential, error) {
+func (v *Verifier) verifyV1(proofAsn1 []byte) (*VerifiedCredential, error) {
 	// Deserialize proof
 	ps := &common.ProofSerializationV1{}
 	_, err := asn1.Unmarshal(proofAsn1, ps)
@@ -129,10 +129,10 @@ func (v *Verifier) VerifyV1(proofAsn1 []byte) (*VerifiedCredential, error) {
 		ADisclosed: aDisclosed,
 	}
 
-	return v.VerifyCommon(proof, ps.DisclosureTimeSeconds)
+	return v.verifyCommon(proof, ps.DisclosureTimeSeconds)
 }
 
-func (v *Verifier) VerifyV2(proofAsn1 []byte) (*VerifiedCredential, error) {
+func (v *Verifier) verifyV2(proofAsn1 []byte) (*VerifiedCredential, error) {
 	// Deserialize proof
 	ps := &common.ProofSerializationV2{}
 	_, err := asn1.Unmarshal(proofAsn1, ps)
@@ -172,10 +172,10 @@ func (v *Verifier) VerifyV2(proofAsn1 []byte) (*VerifiedCredential, error) {
 		ADisclosed: aDisclosed,
 	}
 
-	return v.VerifyCommon(proof, ps.DisclosureTimeSeconds)
+	return v.verifyCommon(proof, ps.DisclosureTimeSeconds)
 }
 
-func (v *Verifier) VerifyCommon(proof *gabi.ProofD, disclosureTimeSeconds int64) (*VerifiedCredential, error) {
+func (v *Verifier) verifyCommon(proof *gabi.ProofD, disclosureTimeSeconds int64) (*VerifiedCredential, error) {
 	// Get metadata attribute (again)
 	credentialVersion, issuerPkId, attributeTypes, err := common.DecodeMetadataAttribute(proof.ADisclosed[1])
 	if err != nil {
