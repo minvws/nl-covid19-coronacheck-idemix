@@ -34,7 +34,7 @@ var AttributeTypesV1 = []string{
 
 var AttributeTypesV2 = []string{
 	"isSpecimen",
-	"stripType",
+	"isPaperProof",
 	"validFrom",
 	"validForHours",
 	"firstNameInitial",

@@ -102,7 +102,7 @@ func TestIssueStatic(t *testing.T) {
 	iss, _, _, v := createIHV(t)
 
 	attrs := buildCredentialsAttributes(1)[0]
-	attrs["stripType"] = "1"
+	attrs["isPaperProof"] = "1"
 	attrs["validForHours"] = "2016"
 
 	proofPrefixed, err := iss.IssueStatic(&issuer.StaticIssueMessage{
@@ -201,7 +201,7 @@ func buildCredentialsAttributes(credentialAmount int) []map[string]string {
 
 		ca := map[string]string{
 			"isSpecimen":       "0",
-			"stripType":        "0",
+			"isPaperProof":     "0",
 			"validFrom":        strconv.FormatInt(validFrom, 10),
 			"validForHours":    "24",
 			"firstNameInitial": "A",
