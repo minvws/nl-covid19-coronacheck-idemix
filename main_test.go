@@ -17,7 +17,13 @@ import (
 	"time"
 )
 
+type TB interface {
+	Fatal(args ...interface{})
+}
+
 func TestPreliminary(t *testing.T) {
+
+
 	credentialAmount := 3
 	iss, h, holderSk, v := createIHV(t)
 
@@ -122,6 +128,20 @@ func TestIssueStatic(t *testing.T) {
 	}
 }
 
+func BenchmarkIssue(b *testing.B) {
+	iss, _, _, _ := createIHV(b)
+	sim := &issuer.StaticIssueMessage{
+		CredentialAttributes: buildCredentialsAttributes(1)[0],
+	}
+
+	for i := 0; i < b.N; i++ {
+		_, err := iss.IssueStatic(sim)
+		if err != nil {
+			b.Fatal("Could not issue static credential for benchmarking", err.Error())
+		}
+	}
+}
+
 func TestV1QRFlow(t *testing.T) {
 	v1CredJSON := []byte(`
 		{
@@ -216,7 +236,7 @@ func buildCredentialsAttributes(credentialAmount int) []map[string]string {
 	return cas
 }
 
-func createIHV(t *testing.T) (*issuer.Issuer, *holder.Holder, *big.Int, *verifier.Verifier) {
+func createIHV(t TB) (*issuer.Issuer, *holder.Holder, *big.Int, *verifier.Verifier) {
 	iss := createIssuer(t)
 	h, holderSk := createHolder()
 	v := createVerifier()
@@ -224,7 +244,7 @@ func createIHV(t *testing.T) (*issuer.Issuer, *holder.Holder, *big.Int, *verifie
 	return iss, h, holderSk, v
 }
 
-func createIssuer(t *testing.T) *issuer.Issuer {
+func createIssuer(t TB) *issuer.Issuer {
 	ls, err := localsigner.NewFromString(testIssuerPkId, testIssuerPkXML, testIssuerSkXML)
 	if err != nil {
 		t.Fatal("Could not create signer:", err.Error())

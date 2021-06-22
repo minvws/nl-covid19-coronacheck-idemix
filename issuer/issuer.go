@@ -63,12 +63,20 @@ func (iss *Issuer) Issue(im *IssueMessage) ([]*common.CreateCredentialMessage, e
 		return nil, err
 	}
 
+	// Get the public key that is used
+	pk, err := iss.signer.FindIssuerPk(im.PrepareIssueMessage.IssuerPkId)
+	if err != nil {
+		return nil, errors.WrapPrefix(err, "Could not find public key that is used to issue credentials", 0)
+	}
+
 	// For every credential, convert the the attribute map to a list of attribute ints,
 	// and extract the proofU out of the commitment
 	// TODO: Extract this fugly mess out into proper structures
 	credentialsAttributeByteList := make([][][]byte, 0, credentialAmount)
 	credentialsAttributeIntList := make([][]*big.Int, 0, credentialAmount)
 	proofUs := make([]*big.Int, 0, credentialAmount)
+	proofs := make([]gabi.Proof, 0, credentialAmount)
+	pks := make([]*gabi.PublicKey, 0, credentialAmount)
 
 	for i := 0; i < credentialAmount; i++ {
 		attributesMap := im.CredentialsAttributes[i]
@@ -85,6 +93,13 @@ func (iss *Issuer) Issue(im *IssueMessage) ([]*common.CreateCredentialMessage, e
 		credentialsAttributeByteList = append(credentialsAttributeByteList, attributesBytes)
 		credentialsAttributeIntList = append(credentialsAttributeIntList, attributesInts)
 		proofUs = append(proofUs, proofU.U)
+		proofs = append(proofs, proofU)
+		pks = append(pks, pk)
+	}
+
+	// Make sure the commitments verify against the previously created nonce
+	if !gabi.ProofList(proofs).Verify(pks, common.BigOne, im.PrepareIssueMessage.IssuerNonce, false, nil) {
+		return nil, errors.Errorf("Holder commitments did did not verify against nonce")
 	}
 
 	// Sign all credentials
