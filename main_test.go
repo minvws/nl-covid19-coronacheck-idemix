@@ -22,13 +22,14 @@ type TB interface {
 }
 
 func TestPreliminary(t *testing.T) {
-
-
 	credentialAmount := 3
 	iss, h, holderSk, v := createIHV(t)
 
+	// Ask for some extra commitments
+	extraCommitments := 7
+
 	// Issuance dance
-	pim, err := iss.PrepareIssue(credentialAmount)
+	pim, err := iss.PrepareIssue(credentialAmount + extraCommitments)
 	if err != nil {
 		t.Fatal("Could not get prepareIssueMessage:", err.Error())
 	}

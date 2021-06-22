@@ -53,7 +53,8 @@ func (iss *Issuer) Issue(im *IssueMessage) ([]*common.CreateCredentialMessage, e
 	// We need at least as much commitments as there are credentials issued
 	// Any additional commitments are just ignored
 	credentialAmount := len(im.CredentialsAttributes)
-	if credentialAmount > len(im.IssueCommitmentMessage.Proofs) {
+	commitmentAmount := len(im.IssueCommitmentMessage.Proofs)
+	if credentialAmount > commitmentAmount {
 		return nil, errors.Errorf("More credentials are being issued than commitments have been supplied")
 	}
 
@@ -75,26 +76,33 @@ func (iss *Issuer) Issue(im *IssueMessage) ([]*common.CreateCredentialMessage, e
 	credentialsAttributeByteList := make([][][]byte, 0, credentialAmount)
 	credentialsAttributeIntList := make([][]*big.Int, 0, credentialAmount)
 	proofUs := make([]*big.Int, 0, credentialAmount)
-	proofs := make([]gabi.Proof, 0, credentialAmount)
-	pks := make([]*gabi.PublicKey, 0, credentialAmount)
+	proofs := make([]gabi.Proof, 0, commitmentAmount)
+	pks := make([]*gabi.PublicKey, 0, commitmentAmount)
 
-	for i := 0; i < credentialAmount; i++ {
+	for i := 0; i < commitmentAmount; i++ {
+		proofU, ok := im.IssueCommitmentMessage.Proofs[i].(*gabi.ProofU)
+		if !ok {
+			return nil, errors.Errorf("Could not recognize issue commitment")
+		}
+
+		// Collect proofs to verify against, for all commitments
+		proofs = append(proofs, proofU)
+		pks = append(pks, pk)
+
+		// Build credential bytes, ints and gather proofs
+		if i >= credentialAmount {
+			continue
+		}
+
 		attributesMap := im.CredentialsAttributes[i]
 		attributesBytes, attributesInts, err := computeAttributesList(attributesMap, metadataAttribute)
 		if err != nil {
 			return nil, errors.WrapPrefix(err, "Could not compute attributes list", 0)
 		}
 
-		proofU, ok := im.IssueCommitmentMessage.Proofs[i].(*gabi.ProofU)
-		if !ok {
-			return nil, errors.Errorf("Could not recognize issue commitment")
-		}
-
 		credentialsAttributeByteList = append(credentialsAttributeByteList, attributesBytes)
 		credentialsAttributeIntList = append(credentialsAttributeIntList, attributesInts)
 		proofUs = append(proofUs, proofU.U)
-		proofs = append(proofs, proofU)
-		pks = append(pks, pk)
 	}
 
 	// Make sure the commitments verify against the previously created nonce
