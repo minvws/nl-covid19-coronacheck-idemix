@@ -16,11 +16,16 @@ type Configuration struct {
 	PublicKeyId    string
 	PublicKeyPath  string
 	PrivateKeyPath string
+
+	StaticPublicKeyId    string
+	StaticPublicKeyPath  string
+	StaticPrivateKeyPath string
 }
 
 type server struct {
-	config *Configuration
-	issuer *issuer.Issuer
+	config        *Configuration
+	dynamicIssuer *issuer.Issuer
+	staticIssuer  *issuer.Issuer
 }
 
 type PrepareIssueRequest struct {
@@ -32,19 +37,22 @@ type IssueStaticResponse struct {
 }
 
 func Run(config *Configuration) error {
-	// Create local signer and issuer
 	var err error
-	localSigner, err := localsigner.New(config.PublicKeyId, config.PublicKeyPath, config.PrivateKeyPath)
+	dynamicSigner, err := localsigner.New(config.PublicKeyId, config.PublicKeyPath, config.PrivateKeyPath)
 	if err != nil {
 		return errors.WrapPrefix(err, "Could not create local signer", 0)
 	}
 
-	iss := issuer.New(localSigner)
+	staticSigner, err := localsigner.New(config.StaticPublicKeyId, config.StaticPublicKeyPath, config.StaticPrivateKeyPath)
+	if err != nil {
+		return errors.WrapPrefix(err, "Could not create local signer", 0)
+	}
 
 	// Serve
 	s := &server{
-		config: config,
-		issuer: iss,
+		config:        config,
+		dynamicIssuer: issuer.New(dynamicSigner),
+		staticIssuer:  issuer.New(staticSigner),
 	}
 
 	err = s.Serve()
@@ -104,7 +112,7 @@ func (s *server) handlePrepareIssue(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	pim, err := s.issuer.PrepareIssue(pir.CredentialAmount)
+	pim, err := s.dynamicIssuer.PrepareIssue(pir.CredentialAmount)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
@@ -137,7 +145,7 @@ func (s *server) handleIssue(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	createCredentialMessages, err := s.issuer.Issue(issueMessage)
+	createCredentialMessages, err := s.dynamicIssuer.Issue(issueMessage)
 	if err != nil {
 		msg := "Could not issue credentials"
 		writeError(w, http.StatusInternalServerError, errors.WrapPrefix(err, msg, 0))
@@ -163,7 +171,7 @@ func (s *server) handleIssueStatic(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	proofPrefixed, err := s.issuer.IssueStatic(sim)
+	proofPrefixed, err := s.staticIssuer.IssueStatic(sim)
 	if err != nil {
 		msg := "Could not issue static proof"
 		writeError(w, http.StatusInternalServerError, errors.WrapPrefix(err, msg, 0))

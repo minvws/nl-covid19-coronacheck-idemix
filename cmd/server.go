@@ -41,6 +41,10 @@ func setServerFlags(cmd *cobra.Command) {
 	flags.String("public-key-id", "TST-KEY-01", "Public key identifier")
 	flags.String("public-key-path", "pk.xml", "Path to public key")
 	flags.String("private-key-path", "sk.xml", "Path to private key")
+
+	flags.String("static-public-key-id", "TST-KEY-01", "Public key identifier for static issuance")
+	flags.String("static-public-key-path", "pk.xml", "Path to public key for static issuance")
+	flags.String("static-private-key-path", "sk.xml", "Path to private key for static issuance")
 }
 
 func configureServer(cmd *cobra.Command) (*server.Configuration, error) {
@@ -69,6 +73,10 @@ func configureServer(cmd *cobra.Command) (*server.Configuration, error) {
 		PublicKeyId:    viper.GetString("public-key-id"),
 		PublicKeyPath:  viper.GetString("public-key-path"),
 		PrivateKeyPath: viper.GetString("private-key-path"),
+
+		StaticPublicKeyId:    viper.GetString("static-public-key-id"),
+		StaticPublicKeyPath:  viper.GetString("static-public-key-path"),
+		StaticPrivateKeyPath: viper.GetString("static-private-key-path"),
 	}
 
 	return config, nil
