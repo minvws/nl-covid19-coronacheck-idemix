@@ -29,107 +29,25 @@ func New(findIssuerPk common.FindIssuerPkFunc) *Verifier {
 func (v *Verifier) VerifyQREncoded(proof []byte) (*VerifiedCredential, error) {
 	// Verify with the v2 proof serialization format
 	proofVersionByte, proofBase45, err := extractProofVersion(proof)
-	if err == nil {
-		if proofVersionByte != common.ProofVersionByte {
-			return nil, errors.Errorf("Unsupported proof version")
-		}
-
-		proofAsn1, err := base45.Base45Decode(proofBase45)
-		if err != nil {
-			return nil, errors.Errorf("Could not base45 decode v2 proof")
-		}
-
-		verifiedCredential, err := v.verifyV2(proofAsn1)
-		if err != nil {
-			return nil, errors.WrapPrefix(err, "Could not verify v2 proof", 0)
-		}
-
-		return verifiedCredential, nil
-	}
-
-	// Try to verify with the v1 serialization
-	proofAsn1, err := base45.Base45Decode(proof)
-	if err != nil {
-		return nil, errors.Errorf("Could not base45 decode v1 proof")
-	}
-
-	verifiedCredential, err := v.verifyV1(proofAsn1)
-	if err != nil {
-		return nil, errors.WrapPrefix(err, "Could not verify v1 proof", 0)
-	}
-
-	return verifiedCredential, nil
-}
-
-func (v *Verifier) verifyV1(proofAsn1 []byte) (*VerifiedCredential, error) {
-	// Deserialize proof
-	ps := &common.ProofSerializationV1{}
-	_, err := asn1.Unmarshal(proofAsn1, ps)
-	if err != nil {
-		return nil, errors.Errorf("Could not unmarshal proof")
-	}
-
-	// Decode metadata attribute up front, separate from the rest of the logic
-	// It must be the first disclosed attribute
-	if len(ps.ADisclosed) < 1 {
-		return nil, errors.Errorf("The metadata attribute must be disclosed")
-	}
-
-	_, _, attributeTypes, err := common.DecodeMetadataAttribute(big.Convert(ps.ADisclosed[0]))
 	if err != nil {
 		return nil, err
 	}
 
-	// Make sure the amount of disclosure choices match the amount of attributes, plus secret key and metadata
-	attributeAmount := len(attributeTypes) + 2
-	if len(ps.DisclosureChoices) != attributeAmount {
-		return nil, errors.Errorf("Invalid amount of disclosure choices")
+	if proofVersionByte != common.ProofVersionByte {
+		return nil, errors.Errorf("Unsupported proof version")
 	}
 
-	// Validate that the secret key is not marked as disclosed, and the metadata is marked as disclosed
-	if ps.DisclosureChoices[0] {
-		return nil, errors.Errorf("First attribute (secret key) should never be disclosed")
+	proofAsn1, err := base45.Base45Decode(proofBase45)
+	if err != nil {
+		return nil, errors.Errorf("Could not base45 decode v2 proof")
 	}
 
-	if !ps.DisclosureChoices[1] {
-		return nil, errors.Errorf("Second attribute (metadata) should be disclosed")
+	verifiedCredential, err := v.verifyV2(proofAsn1)
+	if err != nil {
+		return nil, errors.WrapPrefix(err, "Could not verify v2 proof", 0)
 	}
 
-	// Convert the lists of disclosures and non-disclosure responses to a
-	// map from attribute index -> disclosure/response, while checking bounds
-	aDisclosed, aResponses := map[int]*big.Int{}, map[int]*big.Int{}
-
-	numDisclosures := len(ps.ADisclosed)
-	numResponses := len(ps.AResponses)
-	di, ri := 0, 0
-
-	for i, disclosureChoice := range ps.DisclosureChoices {
-		if disclosureChoice {
-			if di >= numDisclosures {
-				return nil, errors.Errorf("Incongruent amount of disclosures")
-			}
-			aDisclosed[i] = big.Convert(ps.ADisclosed[di])
-			di++
-		} else {
-			if ri >= numResponses {
-				return nil, errors.Errorf("Incongruent amount of non-disclosure responses")
-			}
-			aResponses[i] = big.Convert(ps.AResponses[ri])
-			ri++
-		}
-	}
-
-	// Create a proofD structure
-	proof := &gabi.ProofD{
-		C:          big.Convert(ps.C),
-		A:          big.Convert(ps.A),
-		EResponse:  big.Convert(ps.EResponse),
-		VResponse:  big.Convert(ps.VResponse),
-		AResponses: aResponses,
-		ADisclosed: aDisclosed,
-	}
-
-	return v.verifyCommon(proof, ps.DisclosureTimeSeconds)
+	return verifiedCredential, nil
 }
 
 func (v *Verifier) verifyV2(proofAsn1 []byte) (*VerifiedCredential, error) {

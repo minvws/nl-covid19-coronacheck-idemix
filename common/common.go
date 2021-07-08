@@ -40,18 +40,6 @@ type CredentialMetadataSerialization struct {
 	IssuerPkId string
 }
 
-type ProofSerializationV1 struct {
-	Version               []byte
-	DisclosureTimeSeconds int64
-	DisclosureChoices     []bool
-	C                     *gobig.Int
-	A                     *gobig.Int
-	EResponse             *gobig.Int
-	VResponse             *gobig.Int
-	AResponses            []*gobig.Int
-	ADisclosed            []*gobig.Int
-}
-
 type ProofSerializationV2 struct {
 	DisclosureTimeSeconds int64
 	C                     *gobig.Int
