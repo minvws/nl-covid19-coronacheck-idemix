@@ -21,17 +21,6 @@ var CredentialVersionBytes = []byte{byte(CredentialVersion)}
 
 var ProofVersionByte byte = '2'
 
-var AttributeTypesV1 = []string{
-	"isSpecimen",
-	"isPaperProof",
-	"testType",
-	"sampleTime",
-	"firstNameInitial",
-	"lastNameInitial",
-	"birthDay",
-	"birthMonth",
-}
-
 var AttributeTypesV2 = []string{
 	"isSpecimen",
 	"isPaperProof",
@@ -162,9 +151,7 @@ func DecodeMetadataAttribute(metadataAttribute *big.Int) (credentialVersion int,
 	credentialVersion = int(credentialMetadata.CredentialVersion[0])
 
 	// Determine attribute types for the credential version
-	if credentialVersion == 1 {
-		attributeTypes = AttributeTypesV1
-	} else if credentialVersion == 2 {
+	if credentialVersion == 2 {
 		attributeTypes = AttributeTypesV2
 	} else {
 		return 0, "", nil, errors.Errorf("Unrecognized credential version")
