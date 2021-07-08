@@ -192,13 +192,6 @@ func buildMetadataAttribute(issuerPkId string) (metadataAttribute []byte, err er
 }
 
 func computeAttributesList(attributesMap map[string]string, metadataAttribute []byte) ([][]byte, []*big.Int, error) {
-	// TODO: Remove this compatibility layer once all callers have updated
-	stripType, stripTypePresent := attributesMap["stripType"]
-	if stripTypePresent {
-		attributesMap["isPaperProof"] = stripType
-		delete(attributesMap, "stripType")
-	}
-
 	// Build list of attribute in the correct order, with the metadata attribute prepended
 	namedAttributesAmount := len(common.AttributeTypesV2)
 
