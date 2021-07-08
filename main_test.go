@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"github.com/go-errors/errors"
 	"github.com/minvws/nl-covid19-coronacheck-idemix/common"
 	"github.com/minvws/nl-covid19-coronacheck-idemix/holder"
@@ -140,77 +139,6 @@ func BenchmarkIssue(b *testing.B) {
 		if err != nil {
 			b.Fatal("Could not issue static credential for benchmarking", err.Error())
 		}
-	}
-}
-
-func TestV1QRFlow(t *testing.T) {
-	v1CredJSON := []byte(`
-		{
-		  "signature": {
-			"A": "MNH3AUD5CbFFwGLrxLJ95AEYVjxREc/0tRUFbJ80WI4q6raHfKCPN8UhX0A6H/n39cBFzgBH+6qJ4MLabBQ8TnIQRzCP97ssIbT7fyxwNGMtEkVaBOCcdVXKAbQekcxv4StRckmpMESO58Wg7ZiIc7PHHrfpr8R3Dqb1W95fc55sw9uVwGpUs6OK4R6/fLscCgJz7vaCmalNDUQ5VKTomO51ehOLEvv64FWgBpQG8UGaf03u46qU596zxQufIVMG648Nwq+/qDM80Hqr+xEYY9lI+4I7ok9t1J3iK9bLu4biGuEbIad/Cx4YQ70Kih/Bey1tUX14w/p1y+/yOVuzcg==",
-			"e": "EAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAJyZQhz+XP8GQKBmpvpqn",
-			"v": "DR74Q66Vte4+fQRzoABtuLbB0irjknWXCRqDFExbt4JLahH2/nvlQbacFgnVyxq5H+v/rF3VCbhTeOEBGXkW0EpyEm6d+UfF00HM7Te+EkiOcPaxVKdG+DwnLqrpWWF+o5PgBcFVP7awligixzTQFHqoeIDkT/iXUVAKUTsV6ZcUZ4l02omYZ7dkDBaJVTrq7yYoswHoUuOIHmWgLLE/gtxLDtmKBlL1CCk4CryHJvFfAHNn3y6Qatz/LpjV7mhgJ5mc2kNwMumcVMQj0Y9XRLWTup1BnXotH88j3oo0IyaN+g6Yfjw0cQlEPw5RvZp+oPwBC95d75uoAxk0w54wQ39aXMk+9LgL7GlzJjz21EqfDnXhAYZn6Tm2Y3jE9Y90j5iUxDdxxAF7bP5eJKc1AI7swMvCtL5L+Hjis10JJK8a3luFwSOLycQwlUuAo1xo40A4kY5+O/0LxFpSAXZvBdM=",
-			"KeyshareP": null
-		  },
-		  "attributes": [
-			"bX9ZMCX4iR/lEcmQY4p7YWmY+p5MQBkvvTHH/wTL0k8=",
-			"YBYIAgImDOjK5uig1w==",
-			"YQ==",
-			"YQ==",
-			"oIal",
-			"YmxiYGBgYGBgYQ==",
-			"gw==",
-			"hQ==",
-			"Ymc=",
-			"ZQ=="
-		  ]
-		}
-	`)
-
-	var v1Cred *gabi.Credential
-	err := json.Unmarshal(v1CredJSON, &v1Cred)
-	if err != nil {
-		t.Fatal("Could not JSON unmarshal v1 credential")
-	}
-
-	holderSk := v1Cred.Attributes[0]
-	v1Cred.Attributes[0] = nil
-
-	h := holder.New(holderFindIssuerPk)
-	v1QR, err := h.DiscloseAllWithTimeQREncoded(holderSk, v1Cred, time.Now())
-	if err != nil {
-		t.Fatal("Could not disclose v1 credential")
-	}
-
-	v := verifier.New(holderFindIssuerPk)
-	verifiedCred, err := v.VerifyQREncoded(v1QR)
-	if err != nil {
-		t.Fatal("Could not verify disclosed v1 credential:", err.Error())
-	}
-
-	checkVerifiedV1Cred(t, verifiedCred)
-}
-
-func TestExistingV1Cred(t *testing.T) {
-	v1QR := []byte(`1BX CAI5N4OCRD:$4F*9XUYMQKH3%D01$6FGO8BRZ37SF+UA%MCRCAUF/ATZ70HT5JZWU87 3 .--XRP8$KWHFO7DWAONRTMKYXYMJNSPL9 G2MF9%N34KW8:MT6+LV$BTG.1TUKOG+.*SK5AM2F$60W%QLH% *1C5K73NTQRUVNHAW2$IMYACG+0 PNIVBG:2KN.UGF+04$*OKEL4GUNRU51OMIBRBEL39.IYJUCULG2SVM:RE1L00NZ%O:4Z+2/SIDSF2/UEY34K00LZD1 L..N:HIP8/H/ZOX:D99/6HN+R1LP3-2CCIS2EVDC6 OG-O./WZDI9 P7*CR7ROMIN+9+I6X%J L--:P3-BA+T.HTW59*QXQOAO305X0$8Y60:ZXS21GLHP18X%EO:EGS+$30 O27QQJKVP-NC1..GOFKH$GB -+Q9O+-QC1J848+*T-8ZY+H9BUXWZ+1-YCFVJ56IZGRS+KFZDHMVRNEWHL3+-N5CI9/:8E:2IG8:878SHD 8Z5VM8O*6.41QFORN3X FW10TVYHUZK  DM7H0/BT5JY3FBTU .U9+QYF8N-AIH1+4%3RM8-/V 3+5/.I-AV+WYT-39PG%DVOCPW9BIVKF6NVNIHL$PXQ02 M-5:/JHZGZ546ESJ/27L26OJI7*%SNCE45R%PF1T6:$0TVFQNH5GQ*:EX$TD3DKQXOIR0QPJF*%B$BDZ+IBQ*X1:2R%HPUZH*H0XFAMBK.HIK$USG*1%7NEEG:WJIDZ9IHD5*5O*ICXSE-DIC /*GJY2GBVR.C%4TF6 M-5K0PFI$I+/ 4S%0$:UHBK+$UE75K5XUN5S$FZ4:RZTRD%ZXO:JX0EBA/OQ84U52BRC*CJW8-5VW+Q%BHO+DAEFY:HQBIGD$9YLU:Y4AM7O/$40O: WP585G:O+ NP7/IXU1/QZTTX.:F:Q*B1$PE4YA2/2TXD AV+XY/0 B%K. XSD$-396VSK CLMW2JDX67K2JW4*X3$R5KP:3GY**1/WF29V7*ND4AZ7%YKHV8YZOIRDV$HWN$C-6Y4FYLFXWJ%89L*YT+L -E6FS5C F.TQ8WKOP8AY PL4Y+D-F61I2CSS0ODQ064*C*JX/M/MAR4EBG1YDWV.00NRUT- R3RDAR8+3+NQ9:XIG+O7976Z2.Q6- HHN6%G5VE8MNEKD-B+*TYR1N-RNQSPETE-G98CK:60OT-A2%7N$SELR$540.VZ8ZCXVZFHCP%0QX%TKOZCNKYZXM6WAEVWPC ROL$39FXUHO OS H$EKENBV/AO.S/3QH9PODD0HWAG5MKAV3ZX801QBZVC17BF/-I42/YECZZAL--VC9FYYAMDHPM8.YUY%PU9R7TU.A.A346KB`)
-
-	v := verifier.New(holderFindIssuerPk)
-	verifiedCred, err := v.VerifyQREncoded(v1QR)
-	if err != nil {
-		t.Fatal("Could not verify v1 credential:", err.Error())
-	}
-
-	checkVerifiedV1Cred(t, verifiedCred)
-}
-
-func checkVerifiedV1Cred(t *testing.T, cred *verifier.VerifiedCredential) {
-	if cred.CredentialVersion != 1 ||
-		cred.IssuerPkId != testIssuerPkId ||
-		cred.Attributes["testType"] != "PCR" ||
-		cred.Attributes["sampleTime"] != "1610000000" ||
-		cred.Attributes["firstNameInitial"] != "A" ||
-		cred.Attributes["birthDay"] != "13" {
-		t.Fatal("Unexpected credential values for v1 credential")
 	}
 }
 
