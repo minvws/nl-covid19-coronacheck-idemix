@@ -63,7 +63,7 @@ func (h *Holder) CreateCredentials(credBuilders []gabi.ProofBuilder, ccms []*com
 		// Read credential to verify its version
 		_, version, err := ReadCredential(cred)
 		if err != nil {
-			return nil, errors.WrapPrefix(err, "Could not read freshly contructed credential", 0)
+			return nil, errors.WrapPrefix(err, "Could not read freshly constructed credential", 0)
 		}
 
 		if version != common.CredentialVersion {
