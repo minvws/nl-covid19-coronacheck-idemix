@@ -32,6 +32,18 @@ var AttributeTypesV2 = []string{
 	"birthMonth",
 }
 
+var AttributeTypesV3 = []string{
+	"isSpecimen",
+	"isPaperProof",
+	"validFrom",
+	"validForHours",
+	"firstNameInitial",
+	"lastNameInitial",
+	"birthDay",
+	"birthMonth",
+	"category",
+}
+
 type CredentialMetadataSerialization struct {
 	// CredentialVersion identifies the credential version, and is always a single byte
 	CredentialVersion []byte
@@ -141,6 +153,8 @@ func DecodeMetadataAttribute(metadataAttribute *big.Int) (credentialVersion int,
 	// Determine attribute types for the credential version
 	if credentialVersion == 2 {
 		attributeTypes = AttributeTypesV2
+	} else if credentialVersion == 3 {
+		attributeTypes = AttributeTypesV3
 	} else {
 		return 0, "", nil, errors.Errorf("Unrecognized credential version")
 	}
