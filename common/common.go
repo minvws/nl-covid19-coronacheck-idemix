@@ -6,12 +6,16 @@ import (
 	"encoding/asn1"
 	"encoding/json"
 	"fmt"
+	gobig "math/big"
+	"strconv"
+
 	"github.com/go-errors/errors"
 	"github.com/privacybydesign/gabi"
 	"github.com/privacybydesign/gabi/big"
-	gobig "math/big"
-	"strconv"
+	gabipool "github.com/privacybydesign/gabi/pool"
 )
+
+var PrimePool gabipool.PrimePool = gabipool.NewRandomPool()
 
 var BigOne = big.NewInt(1)
 var GabiSystemParameters = gabi.DefaultSystemParameters[2048]

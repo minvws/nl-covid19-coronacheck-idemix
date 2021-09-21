@@ -3,10 +3,13 @@ package server
 import (
 	"encoding/json"
 	"fmt"
+	"net/http"
+
 	"github.com/go-errors/errors"
+	"github.com/minvws/nl-covid19-coronacheck-idemix/common"
+	"github.com/minvws/nl-covid19-coronacheck-idemix/common/pool"
 	"github.com/minvws/nl-covid19-coronacheck-idemix/issuer"
 	"github.com/minvws/nl-covid19-coronacheck-idemix/issuer/localsigner"
-	"net/http"
 )
 
 type Configuration struct {
@@ -20,6 +23,13 @@ type Configuration struct {
 	StaticPublicKeyId    string
 	StaticPublicKeyPath  string
 	StaticPrivateKeyPath string
+
+	PrimePoolSize        uint64 // Size of the pool (in number of big ints)
+	PrimePoolLwm         uint64 // Low water mark for depletion detection
+	PrimePoolHwm         uint64 // high water mark for depletion detection
+	PrimePoolPrimeStart  uint   // Prime number generator bit start
+	PrimePoolPrimeLength uint   // prime number generator bit length
+	PrimePoolMaxCores    int    // Number of cores to use for prime generation
 }
 
 type server struct {
@@ -67,6 +77,18 @@ func (s *server) Serve() error {
 	addr := fmt.Sprintf("%s:%s", s.config.ListenAddress, s.config.ListenPort)
 	fmt.Printf("Starting server, listening at %s\n", addr)
 
+	// Initialize in-memory prime pool when the size > 0
+	if s.config.PrimePoolSize > 0 {
+		common.PrimePool = pool.NewMemoryPool(
+			s.config.PrimePoolSize,
+			s.config.PrimePoolLwm,
+			s.config.PrimePoolHwm,
+			s.config.PrimePoolPrimeStart,
+			s.config.PrimePoolPrimeLength,
+			s.config.PrimePoolMaxCores,
+		)
+	}
+
 	handler := s.buildHandler()
 	err := http.ListenAndServe(addr, handler)
 	if err != nil {
@@ -79,6 +101,8 @@ func (s *server) Serve() error {
 func (s *server) buildHandler() *http.ServeMux {
 	handler := http.NewServeMux()
 	handler.Handle("/prepare_issue", jsonPostHandler(http.HandlerFunc(s.handlePrepareIssue)))
+
+	handler.Handle("/stats", http.HandlerFunc(s.handleStats))
 
 	handler.Handle("/issue", jsonPostHandler(http.HandlerFunc(s.handleIssue)))
 	handler.Handle("/issue_static", jsonPostHandler(http.HandlerFunc(s.handleIssueStatic)))
@@ -101,6 +125,18 @@ func jsonPostHandler(next http.Handler) http.Handler {
 		w.Header().Set("Content-Type", "application/json")
 		next.ServeHTTP(w, r)
 	})
+}
+
+func (s *server) handleStats(w http.ResponseWriter, r *http.Request) {
+	responseJson, err := common.PrimePool.StatsJSON()
+	if err != nil {
+		msg := "Could not JSON marshal statistics"
+		writeError(w, http.StatusInternalServerError, errors.WrapPrefix(err, msg, 0))
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_, _ = w.Write(responseJson)
 }
 
 func (s *server) handlePrepareIssue(w http.ResponseWriter, r *http.Request) {

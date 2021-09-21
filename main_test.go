@@ -1,24 +1,30 @@
 package main
 
 import (
+	"fmt"
+	"math"
+	"reflect"
+	"strconv"
+	"testing"
+	"time"
+
 	"github.com/go-errors/errors"
 	"github.com/minvws/nl-covid19-coronacheck-idemix/common"
+	"github.com/minvws/nl-covid19-coronacheck-idemix/common/pool"
 	"github.com/minvws/nl-covid19-coronacheck-idemix/holder"
 	"github.com/minvws/nl-covid19-coronacheck-idemix/issuer"
 	"github.com/minvws/nl-covid19-coronacheck-idemix/issuer/localsigner"
 	"github.com/minvws/nl-covid19-coronacheck-idemix/verifier"
 	"github.com/privacybydesign/gabi"
 	"github.com/privacybydesign/gabi/big"
-	"math"
-	"reflect"
-	"strconv"
-	"testing"
-	"time"
+	gabipool "github.com/privacybydesign/gabi/pool"
 )
 
 type TB interface {
 	Fatal(args ...interface{})
 }
+
+var memoryPool gabipool.PrimePool
 
 func TestPreliminary(t *testing.T) {
 	credentialAmount := 3
@@ -128,7 +134,7 @@ func TestIssueStatic(t *testing.T) {
 	}
 }
 
-func BenchmarkIssue(b *testing.B) {
+func BenchmarkIssueStatic(b *testing.B) {
 	iss, _, _, _ := createIHV(b)
 	sim := &issuer.StaticIssueMessage{
 		CredentialAttributes: buildCredentialsAttributes(1)[0],
@@ -140,6 +146,43 @@ func BenchmarkIssue(b *testing.B) {
 			b.Fatal("Could not issue static credential for benchmarking", err.Error())
 		}
 	}
+}
+
+func BenchmarkIssueMultiple(b *testing.B) {
+	iss, hldr, _, _ := createIHV(b)
+
+	credentialAmount := 32
+	holderSk := holder.GenerateSk()
+
+	pim, err := iss.PrepareIssue(credentialAmount)
+	if err != nil {
+		b.Fatal("Could not create prepare issue message", err.Error())
+	}
+
+	_, icm, err := hldr.CreateCommitments(holderSk, pim)
+	if err != nil {
+		b.Fatal("Could not create commitments", err.Error())
+	}
+
+	im := &issuer.IssueMessage{
+		PrepareIssueMessage: pim,
+		IssueCommitmentMessage: icm,
+		CredentialsAttributes: buildCredentialsAttributes(32),
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, err := iss.Issue(im)
+		if err != nil {
+			b.Fatal("Could not issue credentials for benchmarking", err.Error())
+		}
+	}
+}
+
+func BenchmarkIssueMemoryPool(b *testing.B) {
+	common.PrimePool = memoryPool
+
+	BenchmarkIssueMultiple(b)
 }
 
 func buildCredentialsAttributes(credentialAmount int) []map[string]string {
@@ -247,3 +290,14 @@ var testIssuerSkXML = `
    </Elements>
 </IssuerPrivateKey>
 `
+
+
+
+func init() {
+	fmt.Println("prefilling memory pool...")
+	memoryPool = pool.NewMemoryPool(1000, 10, 100, 644, 119, -1)
+	for !memoryPool.(*pool.MemoryPool).IsFull() {
+		time.Sleep(1 * time.Second)
+	}
+	fmt.Println("warmup completed.")
+}

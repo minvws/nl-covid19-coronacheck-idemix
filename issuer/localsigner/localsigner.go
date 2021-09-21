@@ -2,6 +2,7 @@ package localsigner
 
 import (
 	"fmt"
+
 	"github.com/go-errors/errors"
 	"github.com/minvws/nl-covid19-coronacheck-idemix/common"
 	"github.com/privacybydesign/gabi"
@@ -67,7 +68,7 @@ func (ls *LocalSigner) Sign(credentialsAttributes [][]*big.Int, proofUs []*big.I
 
 	isms = make([]*gabi.IssueSignatureMessage, 0, credentialAmount)
 	for i := 0; i < credentialAmount; i++ {
-		ism, err := gabiSigner.IssueSignature(proofUs[i], credentialsAttributes[i], nil, holderNonce, []int{})
+		ism, err := gabiSigner.IssueSignature(common.PrimePool, proofUs[i], credentialsAttributes[i], nil, holderNonce, []int{})
 		if err != nil {
 			return nil, errors.WrapPrefix(err, "Could not create gabi signature", 0)
 		}
