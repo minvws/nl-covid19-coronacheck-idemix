@@ -24,11 +24,9 @@ type TB interface {
 	Fatal(args ...interface{})
 }
 
-var memoryPool gabipool.PrimePool
-
 func TestPreliminary(t *testing.T) {
 	credentialAmount := 3
-	iss, h, holderSk, v := createIHV(t)
+	iss, h, holderSk, v := createIHV(t, true)
 
 	// Ask for some extra commitments
 	extraCommitments := 7
@@ -111,7 +109,7 @@ func TestPreliminary(t *testing.T) {
 }
 
 func TestIssueStatic(t *testing.T) {
-	iss, _, _, v := createIHV(t)
+	iss, _, _, v := createIHV(t, false)
 
 	attrs := buildCredentialsAttributes(1)[0]
 	attrs["isPaperProof"] = "1"
@@ -135,7 +133,7 @@ func TestIssueStatic(t *testing.T) {
 }
 
 func BenchmarkIssueStatic(b *testing.B) {
-	iss, _, _, _ := createIHV(b)
+	iss, _, _, _ := createIHV(b, false)
 	sim := &issuer.StaticIssueMessage{
 		CredentialAttributes: buildCredentialsAttributes(1)[0],
 	}
@@ -148,8 +146,8 @@ func BenchmarkIssueStatic(b *testing.B) {
 	}
 }
 
-func BenchmarkIssueMultiple(b *testing.B) {
-	iss, hldr, _, _ := createIHV(b)
+func benchmarkIssueMultiple(b *testing.B, withPrimePool bool) {
+	iss, hldr, _, _ := createIHV(b, withPrimePool)
 
 	credentialAmount := 32
 	holderSk := holder.GenerateSk()
@@ -165,9 +163,9 @@ func BenchmarkIssueMultiple(b *testing.B) {
 	}
 
 	im := &issuer.IssueMessage{
-		PrepareIssueMessage: pim,
+		PrepareIssueMessage:    pim,
 		IssueCommitmentMessage: icm,
-		CredentialsAttributes: buildCredentialsAttributes(32),
+		CredentialsAttributes:  buildCredentialsAttributes(32),
 	}
 
 	b.ResetTimer()
@@ -179,10 +177,12 @@ func BenchmarkIssueMultiple(b *testing.B) {
 	}
 }
 
-func BenchmarkIssueMemoryPool(b *testing.B) {
-	common.PrimePool = memoryPool
+func BenchmarkIssueMultiple(b *testing.B) {
+	benchmarkIssueMultiple(b, false)
+}
 
-	BenchmarkIssueMultiple(b)
+func BenchmarkIssueMemoryPool(b *testing.B) {
+	benchmarkIssueMultiple(b, true)
 }
 
 func buildCredentialsAttributes(credentialAmount int) []map[string]string {
@@ -208,16 +208,28 @@ func buildCredentialsAttributes(credentialAmount int) []map[string]string {
 	return cas
 }
 
-func createIHV(t TB) (*issuer.Issuer, *holder.Holder, *big.Int, *verifier.Verifier) {
-	iss := createIssuer(t)
+func createIHV(t TB, withPrimePool bool) (*issuer.Issuer, *holder.Holder, *big.Int, *verifier.Verifier) {
+	iss := createIssuer(t, withPrimePool)
 	h, holderSk := createHolder()
 	v := createVerifier()
 
 	return iss, h, holderSk, v
 }
 
-func createIssuer(t TB) *issuer.Issuer {
-	ls, err := localsigner.NewFromString(testIssuerPkId, testIssuerPkXML, testIssuerSkXML)
+func createIssuer(t TB, withPrimePool bool) *issuer.Issuer {
+	var primePool gabipool.PrimePool
+	if withPrimePool {
+		fmt.Println("Prefilling memory pool...")
+		primePool = pool.NewMemoryPool(1000, 10, 100, 644, 119, -1)
+		for !primePool.(*pool.MemoryPool).IsFull() {
+			time.Sleep(1 * time.Second)
+		}
+		fmt.Println("Memory pool warmup completed")
+	} else {
+		primePool = gabipool.NewRandomPool()
+	}
+
+	ls, err := localsigner.NewFromString(testIssuerPkId, testIssuerPkXML, testIssuerSkXML, primePool)
 	if err != nil {
 		t.Fatal("Could not create signer:", err.Error())
 	}
@@ -290,14 +302,3 @@ var testIssuerSkXML = `
    </Elements>
 </IssuerPrivateKey>
 `
-
-
-
-func init() {
-	fmt.Println("prefilling memory pool...")
-	memoryPool = pool.NewMemoryPool(1000, 10, 100, 644, 119, -1)
-	for !memoryPool.(*pool.MemoryPool).IsFull() {
-		time.Sleep(1 * time.Second)
-	}
-	fmt.Println("warmup completed.")
-}

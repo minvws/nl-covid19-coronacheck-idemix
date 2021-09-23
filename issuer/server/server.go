@@ -3,13 +3,13 @@ package server
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/minvws/nl-covid19-coronacheck-idemix/common/pool"
 	"net/http"
 
 	"github.com/go-errors/errors"
-	"github.com/minvws/nl-covid19-coronacheck-idemix/common"
-	"github.com/minvws/nl-covid19-coronacheck-idemix/common/pool"
 	"github.com/minvws/nl-covid19-coronacheck-idemix/issuer"
 	"github.com/minvws/nl-covid19-coronacheck-idemix/issuer/localsigner"
+	gabipool "github.com/privacybydesign/gabi/pool"
 )
 
 type Configuration struct {
@@ -47,13 +47,28 @@ type IssueStaticResponse struct {
 }
 
 func Run(config *Configuration) error {
+	staticPrimePool := gabipool.NewRandomPool()
+	dynamicPrimePool := gabipool.NewRandomPool()
+
+	// Initialize dynamic in-memory prime pool when its configured size > 0
+	if config.PrimePoolSize > 0 {
+		dynamicPrimePool = pool.NewMemoryPool(
+			config.PrimePoolSize,
+			config.PrimePoolLwm,
+			config.PrimePoolHwm,
+			config.PrimePoolPrimeStart,
+			config.PrimePoolPrimeLength,
+			config.PrimePoolMaxCores,
+		)
+	}
+
 	var err error
-	dynamicSigner, err := localsigner.New(config.PublicKeyId, config.PublicKeyPath, config.PrivateKeyPath)
+	dynamicSigner, err := localsigner.New(config.PublicKeyId, config.PublicKeyPath, config.PrivateKeyPath, dynamicPrimePool)
 	if err != nil {
 		return errors.WrapPrefix(err, "Could not create local signer", 0)
 	}
 
-	staticSigner, err := localsigner.New(config.StaticPublicKeyId, config.StaticPublicKeyPath, config.StaticPrivateKeyPath)
+	staticSigner, err := localsigner.New(config.StaticPublicKeyId, config.StaticPublicKeyPath, config.StaticPrivateKeyPath, staticPrimePool)
 	if err != nil {
 		return errors.WrapPrefix(err, "Could not create local signer", 0)
 	}
@@ -76,18 +91,6 @@ func Run(config *Configuration) error {
 func (s *server) Serve() error {
 	addr := fmt.Sprintf("%s:%s", s.config.ListenAddress, s.config.ListenPort)
 	fmt.Printf("Starting server, listening at %s\n", addr)
-
-	// Initialize in-memory prime pool when the size > 0
-	if s.config.PrimePoolSize > 0 {
-		common.PrimePool = pool.NewMemoryPool(
-			s.config.PrimePoolSize,
-			s.config.PrimePoolLwm,
-			s.config.PrimePoolHwm,
-			s.config.PrimePoolPrimeStart,
-			s.config.PrimePoolPrimeLength,
-			s.config.PrimePoolMaxCores,
-		)
-	}
 
 	handler := s.buildHandler()
 	err := http.ListenAndServe(addr, handler)
@@ -128,7 +131,7 @@ func jsonPostHandler(next http.Handler) http.Handler {
 }
 
 func (s *server) handleStats(w http.ResponseWriter, r *http.Request) {
-	responseJson, err := common.PrimePool.StatsJSON()
+	responseJson, err := s.dynamicIssuer.Signer.GetPrimePool().StatsJSON()
 	if err != nil {
 		msg := "Could not JSON marshal statistics"
 		writeError(w, http.StatusInternalServerError, errors.WrapPrefix(err, msg, 0))

@@ -48,12 +48,12 @@ func setServerFlags(cmd *cobra.Command) {
 	flags.String("static-public-key-path", "pk.xml", "Path to public key for static issuance")
 	flags.String("static-private-key-path", "sk.xml", "Path to private key for static issuance")
 
-	flags.Uint("prime-pool-size", 100000, "Number of primes to buffer")
+	flags.Uint("prime-pool-size", 0, "Number of primes to buffer")
 	flags.Uint("prime-pool-lwm", 100, "Low water mark when the buffer is considered depleted")
 	flags.Uint("prime-pool-hwm", 1000, "High water mark when the buffer is considered not depleted")
 	flags.Int("prime-pool-max-cores", -1, "Number of cores to use for generation. use -1 for all cores")
-	flags.Uint("prime-pool-prime-start", common.GabiSystemParameters.Le - 1, "Start bits of the primes")
-	flags.Uint("prime-pool-prime-length", common.GabiSystemParameters.LePrime - 1, "Length range of the primes")
+	flags.Uint("prime-pool-prime-start", common.GabiSystemParameters.Le-1, "Start bits of the primes")
+	flags.Uint("prime-pool-prime-length", common.GabiSystemParameters.LePrime-1, "Length range of the primes")
 }
 
 func configureServer(cmd *cobra.Command) (*server.Configuration, error) {
@@ -87,12 +87,12 @@ func configureServer(cmd *cobra.Command) (*server.Configuration, error) {
 		StaticPublicKeyPath:  viper.GetString("static-public-key-path"),
 		StaticPrivateKeyPath: viper.GetString("static-private-key-path"),
 
-		PrimePoolSize: viper.GetUint64("prime-pool-size"),
-		PrimePoolLwm: viper.GetUint64("prime-pool-lwm"),
-		PrimePoolHwm: viper.GetUint64("prime-pool-hwm"),
-		PrimePoolPrimeStart: viper.GetUint("prime-pool-prime-start"),
+		PrimePoolSize:        viper.GetUint64("prime-pool-size"),
+		PrimePoolLwm:         viper.GetUint64("prime-pool-lwm"),
+		PrimePoolHwm:         viper.GetUint64("prime-pool-hwm"),
+		PrimePoolPrimeStart:  viper.GetUint("prime-pool-prime-start"),
 		PrimePoolPrimeLength: viper.GetUint("prime-pool-prime-length"),
-		PrimePoolMaxCores: viper.GetInt("prime-pool-max-cores"),
+		PrimePoolMaxCores:    viper.GetInt("prime-pool-max-cores"),
 	}
 
 	return config, nil

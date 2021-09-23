@@ -13,4 +13,3 @@ func MaxCores() int {
 
 	return numCPU
 }
-

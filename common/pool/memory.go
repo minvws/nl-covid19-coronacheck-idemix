@@ -13,8 +13,8 @@ import (
 )
 
 type MemoryPool struct {
-	primes []big.Int // Buffer with our new primes
-	size   uint64    // Maximum size of the buffer
+	primes []*big.Int // Buffer with our new primes
+	size   uint64     // Maximum size of the buffer
 
 	mu  sync.Mutex // Mutex to guard index
 	idx uint64     // Current index to the next available prime
@@ -28,11 +28,23 @@ type MemoryPool struct {
 	depletions uint   // Number of times the buffer has been depleted
 }
 
+type Stats struct {
+	Name       string
+	Size       uint64
+	Index      uint64
+	Hwm        uint64
+	Lwm        uint64
+	Depleted   bool
+	Depletions uint
+	BitStart   uint
+	BitLength  uint
+}
+
 func NewMemoryPool(size, lwm, hwm uint64, start, length uint, maxCores int) *MemoryPool {
 	log.Printf("Starting memory pool of size %d\n", size)
 
 	s := &MemoryPool{
-		primes: make([]big.Int, size),
+		primes: make([]*big.Int, size),
 		size:   size,
 		idx:    0,
 		start:  start,
@@ -47,7 +59,7 @@ func NewMemoryPool(size, lwm, hwm uint64, start, length uint, maxCores int) *Mem
 		cores = maxCores
 	}
 
-	// Use all core to generate primes
+	// Use the determined amount of cores to generate primes
 	for i := 0; i < cores; i++ {
 		log.Printf("Starting prime generator on core %d\n", i)
 		// Separate goroutine to fill buffer. When full, it will back off for one second
@@ -68,9 +80,12 @@ func NewMemoryPool(size, lwm, hwm uint64, start, length uint, maxCores int) *Mem
 }
 
 // Fetch a new prime directly from our in-memory buffer
-func (s *MemoryPool) Fetch(_, _ uint) (*big.Int, error) {
+func (s *MemoryPool) Fetch(desiredStart, desiredLength uint) (*big.Int, error) {
+	if desiredStart != s.start || desiredLength != s.length {
+		return gabi.RandomPrimeInRange(rand.Reader, desiredStart, desiredLength)
+	}
+
 	s.mu.Lock()
-	defer s.mu.Unlock()
 
 	// Warn if depleted
 	if s.idx < s.lwm && !s.depleted {
@@ -79,36 +94,28 @@ func (s *MemoryPool) Fetch(_, _ uint) (*big.Int, error) {
 
 		log.Printf("warning: the buffer has been depleted (size: %d, depletions: %d, lwm: %d, hwm: %d)\n", s.size, s.depletions, s.lwm, s.hwm)
 	}
+
+	// When depleted, create a new prime outside the lock
 	if s.idx == 0 {
-		// @TODO: check if we need to return a failure so we can do a 429 status return?
+		s.mu.Unlock()
 		return gabi.RandomPrimeInRange(rand.Reader, s.start, s.length)
 	}
 
-	p := s.primes[s.idx - 1]
+	// Grab a prime, remove it from the list, update index
+	p := s.primes[s.idx-1]
+	s.primes[s.idx-1] = nil
 	s.idx--
 
-	return &p, nil
+	s.mu.Unlock()
+	return p, nil
 }
 
 func (s *MemoryPool) IsFull() bool {
-	return s.idx == s.size - 1
+	return s.idx == s.size-1
 }
 
-func (s *MemoryPool) StatsJSON() ([]byte, error) {
-	type Stats struct {
-		Name       string
-		Size       uint64
-		Index      uint64
-		Hwm        uint64
-		Lwm        uint64
-		Depleted   bool
-		Depletions uint
-		BitStart   uint
-		BitLength  uint
-		Primes     []big.Int
-	}
-
-	stats := Stats{
+func (s *MemoryPool) Stats() Stats {
+	return Stats{
 		Name:       "in-memory",
 		Size:       s.size,
 		Index:      s.idx,
@@ -117,13 +124,13 @@ func (s *MemoryPool) StatsJSON() ([]byte, error) {
 		Depleted:   s.depleted,
 		Depletions: s.depletions,
 
-		BitStart: s.start,
+		BitStart:  s.start,
 		BitLength: s.length,
-
-		Primes: s.primes[:10],
 	}
+}
 
-	return json.Marshal(stats)
+func (s *MemoryPool) StatsJSON() ([]byte, error) {
+	return json.Marshal(s.Stats())
 }
 
 // AddNewPrimeToBuffer will generate a new prime and add it to the buffer if not already full
@@ -145,7 +152,7 @@ func (s *MemoryPool) AddNewPrimeToBuffer() {
 		return
 	}
 
-	s.primes[s.idx] = *p
+	s.primes[s.idx] = p
 	s.idx++
 
 	// Reset notification when above high water mark

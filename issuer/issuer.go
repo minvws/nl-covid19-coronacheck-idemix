@@ -7,6 +7,7 @@ import (
 	"github.com/minvws/nl-covid19-coronacheck-idemix/holder"
 	"github.com/privacybydesign/gabi"
 	"github.com/privacybydesign/gabi/big"
+	gabipool "github.com/privacybydesign/gabi/pool"
 	"time"
 )
 
@@ -14,10 +15,11 @@ type Signer interface {
 	PrepareSign() (pkId string, issuerNonce *big.Int, err error)
 	Sign(credentialsAttributeList [][]*big.Int, proofUs []*big.Int, holderNonce *big.Int) (isms []*gabi.IssueSignatureMessage, err error)
 	FindIssuerPk(kid string) (pk *gabi.PublicKey, err error)
+	GetPrimePool() gabipool.PrimePool
 }
 
 type Issuer struct {
-	signer Signer
+	Signer Signer
 }
 
 type IssueMessage struct {
@@ -32,12 +34,12 @@ type StaticIssueMessage struct {
 
 func New(signer Signer) *Issuer {
 	return &Issuer{
-		signer: signer,
+		Signer: signer,
 	}
 }
 
 func (iss *Issuer) PrepareIssue(credentialAmount int) (*common.PrepareIssueMessage, error) {
-	issuerPkId, issuerNonce, err := iss.signer.PrepareSign()
+	issuerPkId, issuerNonce, err := iss.Signer.PrepareSign()
 	if err != nil {
 		return nil, err
 	}
@@ -65,7 +67,7 @@ func (iss *Issuer) Issue(im *IssueMessage) ([]*common.CreateCredentialMessage, e
 	}
 
 	// Get the public key that is used
-	pk, err := iss.signer.FindIssuerPk(im.PrepareIssueMessage.IssuerPkId)
+	pk, err := iss.Signer.FindIssuerPk(im.PrepareIssueMessage.IssuerPkId)
 	if err != nil {
 		return nil, errors.WrapPrefix(err, "Could not find public key that is used to issue credentials", 0)
 	}
@@ -111,7 +113,7 @@ func (iss *Issuer) Issue(im *IssueMessage) ([]*common.CreateCredentialMessage, e
 	}
 
 	// Sign all credentials
-	isms, err := iss.signer.Sign(credentialsAttributeIntList, proofUs, im.IssueCommitmentMessage.Nonce2)
+	isms, err := iss.Signer.Sign(credentialsAttributeIntList, proofUs, im.IssueCommitmentMessage.Nonce2)
 	if err != nil {
 		return nil, errors.WrapPrefix(err, "Could not sign", 0)
 	}
@@ -142,7 +144,7 @@ func (iss *Issuer) IssueStatic(sim *StaticIssueMessage) ([]byte, error) {
 	}
 
 	// Create a single commitment
-	h := holder.New(iss.signer.FindIssuerPk)
+	h := holder.New(iss.Signer.FindIssuerPk)
 	holderSk := holder.GenerateSk()
 	credBuilders, icm, err := h.CreateCommitments(holderSk, pim)
 	if err != nil {

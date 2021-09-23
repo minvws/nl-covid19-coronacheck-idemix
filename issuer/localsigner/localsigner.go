@@ -7,16 +7,19 @@ import (
 	"github.com/minvws/nl-covid19-coronacheck-idemix/common"
 	"github.com/privacybydesign/gabi"
 	"github.com/privacybydesign/gabi/big"
+
+	gabipool "github.com/privacybydesign/gabi/pool"
 )
 
 type LocalSigner struct {
 	PkId string
 	Pk   *gabi.PublicKey
+	sk   *gabi.PrivateKey
 
-	sk *gabi.PrivateKey
+	Pool gabipool.PrimePool
 }
 
-func New(pkId, pkPath, skPath string) (*LocalSigner, error) {
+func New(pkId, pkPath, skPath string, pool gabipool.PrimePool) (*LocalSigner, error) {
 	pk, err := gabi.NewPublicKeyFromFile(pkPath)
 	if err != nil {
 		msg := fmt.Sprintf("Could not load public key from file %s", pkPath)
@@ -33,10 +36,11 @@ func New(pkId, pkPath, skPath string) (*LocalSigner, error) {
 		PkId: pkId,
 		Pk:   pk,
 		sk:   sk,
+		Pool: pool,
 	}, nil
 }
 
-func NewFromString(pkId, pkXML, skXML string) (*LocalSigner, error) {
+func NewFromString(pkId, pkXML, skXML string, pool gabipool.PrimePool) (*LocalSigner, error) {
 	pk, err := gabi.NewPublicKeyFromXML(pkXML)
 	if err != nil {
 		return nil, errors.WrapPrefix(err, "Could not load public key from string", 0)
@@ -51,6 +55,7 @@ func NewFromString(pkId, pkXML, skXML string) (*LocalSigner, error) {
 		PkId: pkId,
 		Pk:   pk,
 		sk:   sk,
+		Pool: pool,
 	}, nil
 }
 
@@ -68,7 +73,7 @@ func (ls *LocalSigner) Sign(credentialsAttributes [][]*big.Int, proofUs []*big.I
 
 	isms = make([]*gabi.IssueSignatureMessage, 0, credentialAmount)
 	for i := 0; i < credentialAmount; i++ {
-		ism, err := gabiSigner.IssueSignature(common.PrimePool, proofUs[i], credentialsAttributes[i], nil, holderNonce, []int{})
+		ism, err := gabiSigner.IssueSignature(ls.Pool, proofUs[i], credentialsAttributes[i], nil, holderNonce, []int{})
 		if err != nil {
 			return nil, errors.WrapPrefix(err, "Could not create gabi signature", 0)
 		}
@@ -85,4 +90,8 @@ func (ls *LocalSigner) FindIssuerPk(kid string) (pk *gabi.PublicKey, err error) 
 	}
 
 	return ls.Pk, nil
+}
+
+func (ls *LocalSigner) GetPrimePool() gabipool.PrimePool {
+	return ls.Pool
 }

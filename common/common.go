@@ -12,10 +12,7 @@ import (
 	"github.com/go-errors/errors"
 	"github.com/privacybydesign/gabi"
 	"github.com/privacybydesign/gabi/big"
-	gabipool "github.com/privacybydesign/gabi/pool"
 )
-
-var PrimePool gabipool.PrimePool = gabipool.NewRandomPool()
 
 var BigOne = big.NewInt(1)
 var GabiSystemParameters = gabi.DefaultSystemParameters[2048]
