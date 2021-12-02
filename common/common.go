@@ -17,7 +17,7 @@ import (
 var BigOne = big.NewInt(1)
 var GabiSystemParameters = gabi.DefaultSystemParameters[2048]
 
-var CredentialVersion = 2
+var CredentialVersion = 3
 var CredentialVersionBytes = []byte{byte(CredentialVersion)}
 
 var ProofVersionByte byte = '2'
@@ -95,8 +95,13 @@ func GenerateNonce() *big.Int {
 
 func ComputeAttributeInts(attributes [][]byte) ([]*big.Int, error) {
 	// The amount of attributes including the first metadata attribute
+	attributeTypes, err := DetermineAttributeTypes(CredentialVersion)
+	if err != nil {
+		return nil, errors.Errorf("Could not determine attribute types based of the metadata")
+	}
+
 	attributeAmount := len(attributes)
-	if attributeAmount != len(AttributeTypesV2)+1 {
+	if attributeAmount != len(attributeTypes)+1 {
 		return nil, errors.New("Amount of attribute values don't match amount of attribute types")
 	}
 
@@ -139,6 +144,20 @@ func CalculateTimeBasedChallenge(unixTimeSeconds int64) *big.Int {
 	return new(big.Int).SetBytes(timeHash[:challengeByteSize])
 }
 
+func DetermineAttributeTypes(credentialVersion int) (attributeTypes []string, err error) {
+	// The credential version is defined to always be a single byte
+	// Determine attribute types for the credential version
+	if credentialVersion == 2 {
+		attributeTypes = AttributeTypesV2
+	} else if credentialVersion == 3 {
+		attributeTypes = AttributeTypesV3
+	} else {
+		return nil, errors.Errorf("Unrecognized credential version")
+	}
+
+	return attributeTypes, nil
+}
+
 func DecodeMetadataAttribute(metadataAttribute *big.Int) (credentialVersion int, issuerPkId string, attributeTypes []string, err error) {
 	credentialMetadata := &CredentialMetadataSerialization{}
 
@@ -148,16 +167,10 @@ func DecodeMetadataAttribute(metadataAttribute *big.Int) (credentialVersion int,
 		return 0, "", nil, errors.WrapPrefix(err, "Could not unmarshal metadata attribute", 0)
 	}
 
-	// The credential version is defined to always be a single byte
 	credentialVersion = int(credentialMetadata.CredentialVersion[0])
-
-	// Determine attribute types for the credential version
-	if credentialVersion == 2 {
-		attributeTypes = AttributeTypesV2
-	} else if credentialVersion == 3 {
-		attributeTypes = AttributeTypesV3
-	} else {
-		return 0, "", nil, errors.Errorf("Unrecognized credential version")
+	attributeTypes, err = DetermineAttributeTypes(credentialVersion)
+	if err != nil {
+		return 0, "", nil, errors.WrapPrefix(err, "Could not determine attribute types", 0)
 	}
 
 	return credentialVersion, credentialMetadata.IssuerPkId, attributeTypes, nil

@@ -2,13 +2,14 @@ package issuer
 
 import (
 	"encoding/asn1"
+	"time"
+
 	"github.com/go-errors/errors"
 	"github.com/minvws/nl-covid19-coronacheck-idemix/common"
 	"github.com/minvws/nl-covid19-coronacheck-idemix/holder"
 	"github.com/privacybydesign/gabi"
 	"github.com/privacybydesign/gabi/big"
 	gabipool "github.com/privacybydesign/gabi/pool"
-	"time"
 )
 
 type Signer interface {
@@ -195,13 +196,18 @@ func buildMetadataAttribute(issuerPkId string) (metadataAttribute []byte, err er
 
 func computeAttributesList(attributesMap map[string]string, metadataAttribute []byte) ([][]byte, []*big.Int, error) {
 	// Build list of attribute in the correct order, with the metadata attribute prepended
-	namedAttributesAmount := len(common.AttributeTypesV2)
+	attributeTypes, err := common.DetermineAttributeTypes(common.CredentialVersion)
+	if err != nil {
+		return nil, nil, errors.Errorf("Could not determine attribute types based of the metadata")
+	}
+
+	namedAttributesAmount := len(attributeTypes)
 
 	attributesBytes := make([][]byte, 0, namedAttributesAmount+1)
 	attributesBytes = append(attributesBytes, metadataAttribute)
 
 	for i := 0; i < namedAttributesAmount; i++ {
-		attributeType := common.AttributeTypesV2[i]
+		attributeType := attributeTypes[i]
 
 		v, ok := attributesMap[attributeType]
 		if !ok {
