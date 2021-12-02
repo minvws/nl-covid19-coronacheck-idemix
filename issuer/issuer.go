@@ -198,7 +198,7 @@ func computeAttributesList(attributesMap map[string]string, metadataAttribute []
 	// Build list of attribute in the correct order, with the metadata attribute prepended
 	attributeTypes, err := common.DetermineAttributeTypes(common.CredentialVersion)
 	if err != nil {
-		return nil, nil, errors.Errorf("Could not determine attribute types based of the metadata")
+		return nil, nil, errors.Errorf("Could not determine attribute types based of the credentialVersion")
 	}
 
 	namedAttributesAmount := len(attributeTypes)
