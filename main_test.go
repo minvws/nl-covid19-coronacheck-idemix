@@ -202,6 +202,10 @@ func buildCredentialsAttributes(credentialAmount int) []map[string]string {
 			"birthMonth":       "10",
 		}
 
+		if common.CredentialVersion == 3 {
+			ca["category"] = "2G"
+		}
+
 		cas = append(cas, ca)
 	}
 
