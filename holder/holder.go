@@ -7,6 +7,8 @@ import (
 	"github.com/privacybydesign/gabi/big"
 )
 
+var createCredentialVersion = 3
+
 type Holder struct {
 	findIssuerPk common.FindIssuerPkFunc
 }
@@ -66,7 +68,7 @@ func (h *Holder) CreateCredentials(credBuilders []gabi.ProofBuilder, ccms []*com
 			return nil, errors.WrapPrefix(err, "Could not read freshly constructed credential", 0)
 		}
 
-		if version != common.CredentialVersion {
+		if version != createCredentialVersion {
 			return nil, errors.Errorf("Invalid credential version in freshly constructed credential")
 		}
 
@@ -106,7 +108,7 @@ func ReadCredential(cred *gabi.Credential) (attributes map[string]string, versio
 }
 
 func constructCredential(credBuilder gabi.ProofBuilder, ccm *common.CreateCredentialMessage) (*gabi.Credential, error) {
-	attributeInts, err := common.ComputeAttributeInts(ccm.Attributes)
+	attributeInts, err := common.ComputeAttributeInts(createCredentialVersion, ccm.Attributes)
 	if err != nil {
 		return nil, err
 	}

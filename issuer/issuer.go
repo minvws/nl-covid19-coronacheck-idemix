@@ -61,8 +61,20 @@ func (iss *Issuer) Issue(im *IssueMessage) ([]*common.CreateCredentialMessage, e
 		return nil, errors.Errorf("More credentials are being issued than commitments have been supplied")
 	}
 
+	if credentialAmount == 0 {
+		return nil, errors.Errorf("Must issue at least a single credential")
+	}
+
+	// TODO: Do proper API versioning
+	var credentialVersion int
+	if len(im.CredentialsAttributes[0]) == len(common.AttributeTypesV3) {
+		credentialVersion = 3
+	} else {
+		credentialVersion = 2
+	}
+
 	// Build the metadata attribute that is present in every credential
-	metadataAttribute, err := buildMetadataAttribute(im.PrepareIssueMessage.IssuerPkId)
+	metadataAttribute, err := buildMetadataAttribute(credentialVersion, im.PrepareIssueMessage.IssuerPkId)
 	if err != nil {
 		return nil, err
 	}
@@ -98,7 +110,7 @@ func (iss *Issuer) Issue(im *IssueMessage) ([]*common.CreateCredentialMessage, e
 		}
 
 		attributesMap := im.CredentialsAttributes[i]
-		attributesBytes, attributesInts, err := computeAttributesList(attributesMap, metadataAttribute)
+		attributesBytes, attributesInts, err := computeAttributesList(credentialVersion, attributesMap, metadataAttribute)
 		if err != nil {
 			return nil, errors.WrapPrefix(err, "Could not compute attributes list", 0)
 		}
@@ -181,9 +193,9 @@ func (iss *Issuer) IssueStatic(sim *StaticIssueMessage) (proofPrefixed, proofIde
 	return proofPrefixed, proofIdentifier, nil
 }
 
-func buildMetadataAttribute(issuerPkId string) (metadataAttribute []byte, err error) {
+func buildMetadataAttribute(credentialVersion int, issuerPkId string) (metadataAttribute []byte, err error) {
 	metadataAttribute, err = asn1.Marshal(common.CredentialMetadataSerialization{
-		CredentialVersion: common.CredentialVersionBytes,
+		CredentialVersion: []byte{byte(credentialVersion)},
 		IssuerPkId:        issuerPkId,
 	})
 
@@ -194,9 +206,9 @@ func buildMetadataAttribute(issuerPkId string) (metadataAttribute []byte, err er
 	return metadataAttribute, nil
 }
 
-func computeAttributesList(attributesMap map[string]string, metadataAttribute []byte) ([][]byte, []*big.Int, error) {
+func computeAttributesList(credentialVersion int, attributesMap map[string]string, metadataAttribute []byte) ([][]byte, []*big.Int, error) {
 	// Build list of attribute in the correct order, with the metadata attribute prepended
-	attributeTypes, err := common.DetermineAttributeTypes(common.CredentialVersion)
+	attributeTypes, err := common.DetermineAttributeTypes(credentialVersion)
 	if err != nil {
 		return nil, nil, errors.Errorf("Could not determine attribute types based of the credentialVersion")
 	}
@@ -218,7 +230,7 @@ func computeAttributesList(attributesMap map[string]string, metadataAttribute []
 	}
 
 	// Compute attribute values
-	attributesInts, err := common.ComputeAttributeInts(attributesBytes)
+	attributesInts, err := common.ComputeAttributeInts(credentialVersion, attributesBytes)
 	if err != nil {
 		return nil, nil, errors.WrapPrefix(err, "Could not compute attributes", 0)
 	}

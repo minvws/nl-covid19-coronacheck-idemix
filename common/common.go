@@ -17,9 +17,6 @@ import (
 var BigOne = big.NewInt(1)
 var GabiSystemParameters = gabi.DefaultSystemParameters[2048]
 
-var CredentialVersion = 3
-var CredentialVersionBytes = []byte{byte(CredentialVersion)}
-
 var ProofVersionByte byte = '2'
 
 var AttributeTypesV2 = []string{
@@ -93,9 +90,9 @@ func GenerateNonce() *big.Int {
 	return RandomBigInt(GabiSystemParameters.Lstatzk)
 }
 
-func ComputeAttributeInts(attributes [][]byte) ([]*big.Int, error) {
+func ComputeAttributeInts(credentialVersion int, attributes [][]byte) ([]*big.Int, error) {
 	// The amount of attributes including the first metadata attribute
-	attributeTypes, err := DetermineAttributeTypes(CredentialVersion)
+	attributeTypes, err := DetermineAttributeTypes(credentialVersion)
 	if err != nil {
 		return nil, errors.Errorf("Could not determine attribute types based of the metadata")
 	}

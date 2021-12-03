@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/go-errors/errors"
-	"github.com/minvws/nl-covid19-coronacheck-idemix/common"
 	"github.com/minvws/nl-covid19-coronacheck-idemix/common/pool"
 	"github.com/minvws/nl-covid19-coronacheck-idemix/holder"
 	"github.com/minvws/nl-covid19-coronacheck-idemix/issuer"
@@ -69,7 +68,7 @@ func TestPreliminary(t *testing.T) {
 		}
 
 		// Check
-		if credVersion != common.CredentialVersion {
+		if credVersion != 3 {
 			t.Fatal("Incorrect credential version:", credVersion)
 		}
 
@@ -106,7 +105,7 @@ func TestPreliminary(t *testing.T) {
 			t.Fatal("Incorrect issuer public key id:", verifiedCred.IssuerPkId)
 		}
 
-		if verifiedCred.CredentialVersion != common.CredentialVersion {
+		if verifiedCred.CredentialVersion != 3 {
 			t.Fatal("Incorrect credential version:", verifiedCred.CredentialVersion)
 		}
 	}
@@ -208,10 +207,7 @@ func buildCredentialsAttributes(credentialAmount int) []map[string]string {
 			"lastNameInitial":  "R",
 			"birthDay":         "20",
 			"birthMonth":       "10",
-		}
-
-		if common.CredentialVersion == 3 {
-			ca["category"] = "2G"
+			"category":         "3",
 		}
 
 		cas = append(cas, ca)
