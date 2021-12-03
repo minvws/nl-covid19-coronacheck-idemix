@@ -43,7 +43,8 @@ type PrepareIssueRequest struct {
 }
 
 type IssueStaticResponse struct {
-	QR string `json:"qr"`
+	QR              string `json:"qr"`
+	ProofIdentifier []byte `json:"proofIdentifier"`
 }
 
 func Run(config *Configuration) error {
@@ -210,14 +211,17 @@ func (s *server) handleIssueStatic(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	proofPrefixed, err := s.staticIssuer.IssueStatic(sim)
+	proofPrefixed, proofIdentifier, err := s.staticIssuer.IssueStatic(sim)
 	if err != nil {
 		msg := "Could not issue static proof"
 		writeError(w, http.StatusInternalServerError, errors.WrapPrefix(err, msg, 0))
 		return
 	}
 
-	responseJson, err := json.Marshal(&IssueStaticResponse{QR: string(proofPrefixed)})
+	responseJson, err := json.Marshal(&IssueStaticResponse{
+		QR:              string(proofPrefixed),
+		ProofIdentifier: proofIdentifier,
+	})
 	if err != nil {
 		msg := "Could not JSON marshal static proof"
 		writeError(w, http.StatusInternalServerError, errors.WrapPrefix(err, msg, 0))

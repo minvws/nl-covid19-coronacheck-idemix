@@ -136,11 +136,11 @@ func (iss *Issuer) Issue(im *IssueMessage) ([]*common.CreateCredentialMessage, e
 	return ccms, nil
 }
 
-func (iss *Issuer) IssueStatic(sim *StaticIssueMessage) ([]byte, error) {
+func (iss *Issuer) IssueStatic(sim *StaticIssueMessage) (proofPrefixed, proofIdentifier []byte, err error) {
 	// Prepare issuance
 	pim, err := iss.PrepareIssue(1)
 	if err != nil {
-		return nil, errors.WrapPrefix(err, "Could not create prepare issue message", 0)
+		return nil, nil, errors.WrapPrefix(err, "Could not create prepare issue message", 0)
 	}
 
 	// Create a single commitment
@@ -148,7 +148,7 @@ func (iss *Issuer) IssueStatic(sim *StaticIssueMessage) ([]byte, error) {
 	holderSk := holder.GenerateSk()
 	credBuilders, icm, err := h.CreateCommitments(holderSk, pim)
 	if err != nil {
-		return nil, errors.WrapPrefix(err, "Could not create commitment", 0)
+		return nil, nil, errors.WrapPrefix(err, "Could not create commitment", 0)
 	}
 
 	// Issue and create credentials
@@ -158,26 +158,26 @@ func (iss *Issuer) IssueStatic(sim *StaticIssueMessage) ([]byte, error) {
 		CredentialsAttributes:  []map[string]string{sim.CredentialAttributes},
 	})
 	if err != nil {
-		return nil, errors.WrapPrefix(err, "Could not issue static credential", 0)
+		return nil, nil, errors.WrapPrefix(err, "Could not issue static credential", 0)
 	}
 
 	creds, err := h.CreateCredentials(credBuilders, ccms)
 	if err != nil {
-		return nil, errors.WrapPrefix(err, "Could not create static credential", 0)
+		return nil, nil, errors.WrapPrefix(err, "Could not create static credential", 0)
 	}
 
 	credAmount := len(creds)
 	if credAmount != 1 {
-		return nil, errors.Errorf("Expected only a single credential, got %d instead", credAmount)
+		return nil, nil, errors.Errorf("Expected only a single credential, got %d instead", credAmount)
 	}
 
 	// Disclose to create the QR, with a zero disclosure timestamp
-	proofPrefixed, err := h.DiscloseAllWithTimeQREncoded(holderSk, creds[0], time.Unix(0, 0))
+	proofPrefixed, proofIdentifier, err = h.DiscloseAllWithTimeQREncoded(holderSk, creds[0], time.Unix(0, 0))
 	if err != nil {
-		return nil, errors.WrapPrefix(err, "Could not disclose credential", 0)
+		return nil, nil, errors.WrapPrefix(err, "Could not disclose credential", 0)
 	}
 
-	return proofPrefixed, nil
+	return proofPrefixed, proofIdentifier, nil
 }
 
 func buildMetadataAttribute(issuerPkId string) (metadataAttribute []byte, err error) {

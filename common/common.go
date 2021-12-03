@@ -163,6 +163,12 @@ func DecodeMetadataAttribute(metadataAttribute *big.Int) (credentialVersion int,
 	return credentialVersion, credentialMetadata.IssuerPkId, attributeTypes, nil
 }
 
+// CalculateProofIdentifier calculates the sha256 digest of ProofD.C, truncated to 128 bits
+func CalculateProofIdentifier(proof *gabi.ProofD) []byte {
+	proofDigest := sha256.Sum256(proof.C.Bytes())
+	return proofDigest[:16]
+}
+
 func DebugSerializableStruct(s interface{}) {
 	str, _ := json.MarshalIndent(s, "", "  ")
 	fmt.Println(string(str))
