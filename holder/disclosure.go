@@ -10,38 +10,38 @@ import (
 	"time"
 )
 
-func (h *Holder) DiscloseAllWithTimeQREncoded(holderSk *big.Int, cred *gabi.Credential, now time.Time) ([]byte, error) {
-	proofAsn1, err := h.DiscloseAllWithTime(holderSk, cred, now)
+func (h *Holder) DiscloseAllWithTimeQREncoded(holderSk *big.Int, cred *gabi.Credential, now time.Time) (qr, proofIdentifier []byte, err error) {
+	proofAsn1, proofIdentifier, err := h.DiscloseAllWithTime(holderSk, cred, now)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// Serialize as base45 QR-code
 	proofBase45, err := base45.Base45Encode(proofAsn1)
 	if err != nil {
-		return nil, errors.WrapPrefix(err, "Could not base45 encode proof", 0)
+		return nil, nil, errors.WrapPrefix(err, "Could not base45 encode proof", 0)
 	}
 
 	// Add prefix
 	prefix := []byte{'N', 'L', common.ProofVersionByte, ':'}
-	proofPrefixed := append(prefix, proofBase45...)
+	qr = append(prefix, proofBase45...)
 
-	return proofPrefixed, nil
+	return qr, proofIdentifier, nil
 }
 
-func (h *Holder) DiscloseAllWithTime(holderSk *big.Int, cred *gabi.Credential, now time.Time) ([]byte, error) {
+func (h *Holder) DiscloseAllWithTime(holderSk *big.Int, cred *gabi.Credential, now time.Time) (proofAsn1, proofIdentifier []byte, err error) {
 	attributesAmount := len(cred.Attributes)
 	if attributesAmount < 2 {
-		return nil, errors.Errorf("Invalid amount of credential attributes")
+		return nil, nil, errors.Errorf("Invalid amount of credential attributes")
 	}
 
 	// Set the holderSk as first attribute of the credential
 	cred.Attributes[0] = holderSk
 
 	// Retrieve the public key from the credential metadata
-	err := h.setCredentialPublicKey(cred)
+	err = h.setCredentialPublicKey(cred)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// Use the time as 'challenge' (that can be precomputed and replayed, indeed)
@@ -57,14 +57,14 @@ func (h *Holder) DiscloseAllWithTime(holderSk *big.Int, cred *gabi.Credential, n
 	var dpbs gabi.ProofBuilderList
 	dpb, err := cred.CreateDisclosureProofBuilder(disclosedIndices, false)
 	if err != nil {
-		return nil, errors.WrapPrefix(err, "Failed to create disclosure proof builder", 0)
+		return nil, nil, errors.WrapPrefix(err, "Failed to create disclosure proof builder", 0)
 	}
 
 	dpbs = append(dpbs, dpb)
 
 	proofList := dpbs.BuildProofList(common.BigOne, challenge, false)
 	if len(proofList) != 1 {
-		return nil, errors.Errorf("Invalid amount of proofs")
+		return nil, nil, errors.Errorf("Invalid amount of proofs")
 	}
 
 	proof := proofList[0].(*gabi.ProofD)
@@ -83,12 +83,15 @@ func (h *Holder) DiscloseAllWithTime(holderSk *big.Int, cred *gabi.Credential, n
 		ps.ADisclosed = append(ps.ADisclosed, proof.ADisclosed[i].Go())
 	}
 
-	proofAsn1, err := asn1.Marshal(ps)
+	proofAsn1, err = asn1.Marshal(ps)
 	if err != nil {
-		return nil, errors.WrapPrefix(err, "Could not ASN1 marshal proof", 0)
+		return nil, nil, errors.WrapPrefix(err, "Could not ASN1 marshal proof", 0)
 	}
 
-	return proofAsn1, nil
+	// Calculate proof identifier
+	proofIdentifier = common.CalculateProofIdentifier(proof)
+
+	return proofAsn1, proofIdentifier, nil
 }
 
 func (h *Holder) setCredentialPublicKey(cred *gabi.Credential) error {

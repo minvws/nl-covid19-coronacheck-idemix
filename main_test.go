@@ -78,19 +78,23 @@ func TestPreliminary(t *testing.T) {
 		}
 
 		// Disclose
-		proofPrefixed, err := h.DiscloseAllWithTimeQREncoded(holderSk, creds[i], time.Now())
+		qr, proofIdentifier, err := h.DiscloseAllWithTimeQREncoded(holderSk, creds[i], time.Now())
 		if err != nil {
 			t.Fatal("Could not disclosure credential:", err.Error())
 		}
 
 		// Verify
-		verifiedCred, err := v.VerifyQREncoded(proofPrefixed)
+		verifiedCred, err := v.VerifyQREncoded(qr)
 		if err != nil {
 			t.Fatal("Could not verify disclosed credential:", err.Error())
 		}
 
 		if !reflect.DeepEqual(credentialsAttributes[i], verifiedCred.Attributes) {
 			t.Fatal("Verified attributes are not the same as those issued")
+		}
+
+		if !reflect.DeepEqual(verifiedCred.ProofIdentifier, proofIdentifier) {
+			t.Fatal("Proof identifier of verified QR didn't match the one at issuance")
 		}
 
 		secondsDifference := int(math.Abs(float64(verifiedCred.DisclosureTimeSeconds - disclosureTime)))
@@ -115,7 +119,7 @@ func TestIssueStatic(t *testing.T) {
 	attrs["isPaperProof"] = "1"
 	attrs["validForHours"] = "2016"
 
-	proofPrefixed, err := iss.IssueStatic(&issuer.StaticIssueMessage{
+	proofPrefixed, proofIdentifier, err := iss.IssueStatic(&issuer.StaticIssueMessage{
 		CredentialAttributes: attrs,
 	})
 	if err != nil {
@@ -130,6 +134,10 @@ func TestIssueStatic(t *testing.T) {
 	if !reflect.DeepEqual(attrs, verifiedCred.Attributes) {
 		t.Fatal("Verified attributes are not the same as those issued statically")
 	}
+
+	if !reflect.DeepEqual(verifiedCred.ProofIdentifier, proofIdentifier) {
+		t.Fatal("Proof identifier of verified QR didn't match the one at issuance")
+	}
 }
 
 func BenchmarkIssueStatic(b *testing.B) {
@@ -139,7 +147,7 @@ func BenchmarkIssueStatic(b *testing.B) {
 	}
 
 	for i := 0; i < b.N; i++ {
-		_, err := iss.IssueStatic(sim)
+		_, _, err := iss.IssueStatic(sim)
 		if err != nil {
 			b.Fatal("Could not issue static credential for benchmarking", err.Error())
 		}

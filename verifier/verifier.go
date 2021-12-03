@@ -1,7 +1,6 @@
 package verifier
 
 import (
-	"crypto/sha256"
 	"encoding/asn1"
 	"github.com/go-errors/errors"
 	"github.com/minvws/base45-go/base45"
@@ -131,16 +130,12 @@ func (v *Verifier) verifyCommon(proof *gabi.ProofD, disclosureTimeSeconds int64)
 		attributes[attributeType] = string(common.DecodeAttributeInt(d))
 	}
 
-	// Calculate digest of ProofD.C, take 128 bits
-	proofDigest := sha256.Sum256(proof.C.Bytes())
-	proofIdentifier := proofDigest[:16]
-
 	return &VerifiedCredential{
 		Attributes:            attributes,
 		DisclosureTimeSeconds: disclosureTimeSeconds,
 		IssuerPkId:            issuerPkId,
 		CredentialVersion:     credentialVersion,
-		ProofIdentifier:       proofIdentifier,
+		ProofIdentifier:       common.CalculateProofIdentifier(proof),
 	}, nil
 }
 
