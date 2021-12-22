@@ -9,11 +9,15 @@ import (
 
 type Holder struct {
 	findIssuerPk common.FindIssuerPkFunc
+
+	// createCredentialVersion is the only version the the holder will construct new credentials for
+	createCredentialVersion int
 }
 
-func New(findIssuerPk common.FindIssuerPkFunc) *Holder {
+func New(findIssuerPk common.FindIssuerPkFunc, createCredentialVersion int) *Holder {
 	return &Holder{
-		findIssuerPk: findIssuerPk,
+		findIssuerPk:            findIssuerPk,
+		createCredentialVersion: createCredentialVersion,
 	}
 }
 
@@ -52,7 +56,7 @@ func (h *Holder) CreateCredentials(credBuilders []gabi.ProofBuilder, ccms []*com
 
 	creds := make([]*gabi.Credential, 0, credentialAmount)
 	for i := 0; i < credentialAmount; i++ {
-		cred, err := constructCredential(credBuilders[i], ccms[i])
+		cred, err := h.constructCredential(credBuilders[i], ccms[i])
 		if err != nil {
 			return nil, errors.WrapPrefix(err, "Could not construct credential", 0)
 		}
@@ -61,12 +65,12 @@ func (h *Holder) CreateCredentials(credBuilders []gabi.ProofBuilder, ccms []*com
 		cred.Attributes[0] = nil
 
 		// Read credential to verify its version
-		_, version, err := ReadCredential(cred)
+		_, version, err := h.ReadCredential(cred)
 		if err != nil {
 			return nil, errors.WrapPrefix(err, "Could not read freshly constructed credential", 0)
 		}
 
-		if version != common.CredentialVersion {
+		if version != h.createCredentialVersion {
 			return nil, errors.Errorf("Invalid credential version in freshly constructed credential")
 		}
 
@@ -76,7 +80,7 @@ func (h *Holder) CreateCredentials(credBuilders []gabi.ProofBuilder, ccms []*com
 	return creds, nil
 }
 
-func ReadCredential(cred *gabi.Credential) (attributes map[string]string, version int, err error) {
+func (h *Holder) ReadCredential(cred *gabi.Credential) (attributes map[string]string, version int, err error) {
 	// Validate that at least the secret key and metadata attribute is present
 	attributeAmount := len(cred.Attributes)
 	if attributeAmount < 2 {
@@ -105,8 +109,9 @@ func ReadCredential(cred *gabi.Credential) (attributes map[string]string, versio
 	return attributes, credentialVersion, nil
 }
 
-func constructCredential(credBuilder gabi.ProofBuilder, ccm *common.CreateCredentialMessage) (*gabi.Credential, error) {
-	attributeInts, err := common.ComputeAttributeInts(ccm.Attributes)
+func (h *Holder) constructCredential(credBuilder gabi.ProofBuilder, ccm *common.CreateCredentialMessage) (*gabi.Credential, error) {
+	attributeTypes := common.AttributeTypes[h.createCredentialVersion]
+	attributeInts, err := common.ComputeAttributeInts(attributeTypes, ccm.Attributes)
 	if err != nil {
 		return nil, err
 	}

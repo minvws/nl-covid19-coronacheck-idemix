@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/go-errors/errors"
-	"github.com/minvws/nl-covid19-coronacheck-idemix/common"
 	"github.com/minvws/nl-covid19-coronacheck-idemix/common/pool"
 	"github.com/minvws/nl-covid19-coronacheck-idemix/holder"
 	"github.com/minvws/nl-covid19-coronacheck-idemix/issuer"
@@ -24,9 +23,19 @@ type TB interface {
 	Fatal(args ...interface{})
 }
 
-func TestPreliminary(t *testing.T) {
+func TestCredentialVersion2(t *testing.T) {
+	testIssuanceDisclosureVerificationFlow(t, 2)
+	testStaticIssuanceFlow(t, 2)
+}
+
+func TestCredentialVersion3(t *testing.T) {
+	testIssuanceDisclosureVerificationFlow(t, 3)
+	testStaticIssuanceFlow(t, 3)
+}
+
+func testIssuanceDisclosureVerificationFlow(t *testing.T, credentialVersion int) {
 	credentialAmount := 3
-	iss, h, holderSk, v := createIHV(t, true)
+	iss, h, holderSk, v := createIHV(t, credentialVersion, true)
 
 	// Ask for some extra commitments
 	extraCommitments := 7
@@ -42,12 +51,13 @@ func TestPreliminary(t *testing.T) {
 		t.Fatal("Could not create credential commitments:", err.Error())
 	}
 
-	credentialsAttributes := buildCredentialsAttributes(credentialAmount)
+	credentialsAttributes := buildCredentialsAttributes(credentialAmount, credentialVersion)
 
 	im := &issuer.IssueMessage{
 		PrepareIssueMessage:    pim,
 		IssueCommitmentMessage: icm,
 		CredentialsAttributes:  credentialsAttributes,
+		CredentialVersion:      credentialVersion,
 	}
 
 	ccms, err := iss.Issue(im)
@@ -63,13 +73,13 @@ func TestPreliminary(t *testing.T) {
 
 	for i := 0; i < credentialAmount; i++ {
 		// Read
-		readAttributes, credVersion, err := holder.ReadCredential(creds[i])
+		readAttributes, credVersion, err := h.ReadCredential(creds[i])
 		if err != nil {
 			t.Fatal("Could not read credential:", err.Error())
 		}
 
 		// Check
-		if credVersion != common.CredentialVersion {
+		if credVersion != credentialVersion {
 			t.Fatal("Incorrect credential version:", credVersion)
 		}
 
@@ -106,21 +116,22 @@ func TestPreliminary(t *testing.T) {
 			t.Fatal("Incorrect issuer public key id:", verifiedCred.IssuerPkId)
 		}
 
-		if verifiedCred.CredentialVersion != common.CredentialVersion {
+		if verifiedCred.CredentialVersion != credentialVersion {
 			t.Fatal("Incorrect credential version:", verifiedCred.CredentialVersion)
 		}
 	}
 }
 
-func TestIssueStatic(t *testing.T) {
-	iss, _, _, v := createIHV(t, false)
+func testStaticIssuanceFlow(t *testing.T, credentialVersion int) {
+	iss, _, _, v := createIHV(t, credentialVersion, false)
 
-	attrs := buildCredentialsAttributes(1)[0]
+	attrs := buildCredentialsAttributes(1, credentialVersion)[0]
 	attrs["isPaperProof"] = "1"
 	attrs["validForHours"] = "2016"
 
 	proofPrefixed, proofIdentifier, err := iss.IssueStatic(&issuer.StaticIssueMessage{
 		CredentialAttributes: attrs,
+		CredentialVersion:    credentialVersion,
 	})
 	if err != nil {
 		t.Fatal("Could not issue static credential", err.Error())
@@ -141,9 +152,10 @@ func TestIssueStatic(t *testing.T) {
 }
 
 func BenchmarkIssueStatic(b *testing.B) {
-	iss, _, _, _ := createIHV(b, false)
+	iss, _, _, _ := createIHV(b, 3, false)
 	sim := &issuer.StaticIssueMessage{
-		CredentialAttributes: buildCredentialsAttributes(1)[0],
+		CredentialAttributes: buildCredentialsAttributes(1, 3)[0],
+		CredentialVersion:    3,
 	}
 
 	for i := 0; i < b.N; i++ {
@@ -155,7 +167,7 @@ func BenchmarkIssueStatic(b *testing.B) {
 }
 
 func benchmarkIssueMultiple(b *testing.B, withPrimePool bool) {
-	iss, hldr, _, _ := createIHV(b, withPrimePool)
+	iss, hldr, _, _ := createIHV(b, 3, withPrimePool)
 
 	credentialAmount := 32
 	holderSk := holder.GenerateSk()
@@ -173,7 +185,8 @@ func benchmarkIssueMultiple(b *testing.B, withPrimePool bool) {
 	im := &issuer.IssueMessage{
 		PrepareIssueMessage:    pim,
 		IssueCommitmentMessage: icm,
-		CredentialsAttributes:  buildCredentialsAttributes(32),
+		CredentialsAttributes:  buildCredentialsAttributes(32, 3),
+		CredentialVersion:      3,
 	}
 
 	b.ResetTimer()
@@ -193,7 +206,7 @@ func BenchmarkIssueMemoryPool(b *testing.B) {
 	benchmarkIssueMultiple(b, true)
 }
 
-func buildCredentialsAttributes(credentialAmount int) []map[string]string {
+func buildCredentialsAttributes(credentialAmount int, credentialVersion int) []map[string]string {
 	cas := make([]map[string]string, 0, credentialAmount)
 
 	for i := 0; i < credentialAmount; i++ {
@@ -210,15 +223,19 @@ func buildCredentialsAttributes(credentialAmount int) []map[string]string {
 			"birthMonth":       "10",
 		}
 
+		if credentialVersion == 3 {
+			ca["category"] = "2G"
+		}
+
 		cas = append(cas, ca)
 	}
 
 	return cas
 }
 
-func createIHV(t TB, withPrimePool bool) (*issuer.Issuer, *holder.Holder, *big.Int, *verifier.Verifier) {
+func createIHV(t TB, credentialVersion int, withPrimePool bool) (*issuer.Issuer, *holder.Holder, *big.Int, *verifier.Verifier) {
 	iss := createIssuer(t, withPrimePool)
-	h, holderSk := createHolder()
+	h, holderSk := createHolder(credentialVersion)
 	v := createVerifier()
 
 	return iss, h, holderSk, v
@@ -245,9 +262,9 @@ func createIssuer(t TB, withPrimePool bool) *issuer.Issuer {
 	return issuer.New(ls)
 }
 
-func createHolder() (*holder.Holder, *big.Int) {
+func createHolder(credentialVersion int) (*holder.Holder, *big.Int) {
 	holderSk := holder.GenerateSk()
-	return holder.New(holderFindIssuerPk), holderSk
+	return holder.New(holderFindIssuerPk, credentialVersion), holderSk
 }
 
 func createVerifier() *verifier.Verifier {

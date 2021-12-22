@@ -2,13 +2,14 @@ package issuer
 
 import (
 	"encoding/asn1"
+	"time"
+
 	"github.com/go-errors/errors"
 	"github.com/minvws/nl-covid19-coronacheck-idemix/common"
 	"github.com/minvws/nl-covid19-coronacheck-idemix/holder"
 	"github.com/privacybydesign/gabi"
 	"github.com/privacybydesign/gabi/big"
 	gabipool "github.com/privacybydesign/gabi/pool"
-	"time"
 )
 
 type Signer interface {
@@ -26,10 +27,12 @@ type IssueMessage struct {
 	PrepareIssueMessage    *common.PrepareIssueMessage  `json:"prepareIssueMessage"`
 	IssueCommitmentMessage *gabi.IssueCommitmentMessage `json:"issueCommitmentMessage"`
 	CredentialsAttributes  []map[string]string          `json:"credentialsAttributes"`
+	CredentialVersion      int                          `json:"credentialVersion"`
 }
 
 type StaticIssueMessage struct {
 	CredentialAttributes map[string]string `json:"credentialAttributes"`
+	CredentialVersion    int               `json:"credentialVersion"`
 }
 
 func New(signer Signer) *Issuer {
@@ -60,8 +63,8 @@ func (iss *Issuer) Issue(im *IssueMessage) ([]*common.CreateCredentialMessage, e
 		return nil, errors.Errorf("More credentials are being issued than commitments have been supplied")
 	}
 
-	// Build the metadata attribute that is present in every credential
-	metadataAttribute, err := buildMetadataAttribute(im.PrepareIssueMessage.IssuerPkId)
+	// Build the metadata attribute that is present in every credential, for the requested credential version
+	metadataAttribute, err := buildMetadataAttribute(im.CredentialVersion, im.PrepareIssueMessage.IssuerPkId)
 	if err != nil {
 		return nil, err
 	}
@@ -97,7 +100,7 @@ func (iss *Issuer) Issue(im *IssueMessage) ([]*common.CreateCredentialMessage, e
 		}
 
 		attributesMap := im.CredentialsAttributes[i]
-		attributesBytes, attributesInts, err := computeAttributesList(attributesMap, metadataAttribute)
+		attributesBytes, attributesInts, err := computeAttributesList(im.CredentialVersion, attributesMap, metadataAttribute)
 		if err != nil {
 			return nil, errors.WrapPrefix(err, "Could not compute attributes list", 0)
 		}
@@ -144,7 +147,7 @@ func (iss *Issuer) IssueStatic(sim *StaticIssueMessage) (proofPrefixed, proofIde
 	}
 
 	// Create a single commitment
-	h := holder.New(iss.Signer.FindIssuerPk)
+	h := holder.New(iss.Signer.FindIssuerPk, sim.CredentialVersion)
 	holderSk := holder.GenerateSk()
 	credBuilders, icm, err := h.CreateCommitments(holderSk, pim)
 	if err != nil {
@@ -156,11 +159,11 @@ func (iss *Issuer) IssueStatic(sim *StaticIssueMessage) (proofPrefixed, proofIde
 		PrepareIssueMessage:    pim,
 		IssueCommitmentMessage: icm,
 		CredentialsAttributes:  []map[string]string{sim.CredentialAttributes},
+		CredentialVersion:      sim.CredentialVersion,
 	})
 	if err != nil {
 		return nil, nil, errors.WrapPrefix(err, "Could not issue static credential", 0)
 	}
-
 	creds, err := h.CreateCredentials(credBuilders, ccms)
 	if err != nil {
 		return nil, nil, errors.WrapPrefix(err, "Could not create static credential", 0)
@@ -180,9 +183,9 @@ func (iss *Issuer) IssueStatic(sim *StaticIssueMessage) (proofPrefixed, proofIde
 	return proofPrefixed, proofIdentifier, nil
 }
 
-func buildMetadataAttribute(issuerPkId string) (metadataAttribute []byte, err error) {
+func buildMetadataAttribute(credentialVersion int, issuerPkId string) (metadataAttribute []byte, err error) {
 	metadataAttribute, err = asn1.Marshal(common.CredentialMetadataSerialization{
-		CredentialVersion: common.CredentialVersionBytes,
+		CredentialVersion: []byte{byte(credentialVersion)},
 		IssuerPkId:        issuerPkId,
 	})
 
@@ -193,15 +196,20 @@ func buildMetadataAttribute(issuerPkId string) (metadataAttribute []byte, err er
 	return metadataAttribute, nil
 }
 
-func computeAttributesList(attributesMap map[string]string, metadataAttribute []byte) ([][]byte, []*big.Int, error) {
+func computeAttributesList(credentialVersion int, attributesMap map[string]string, metadataAttribute []byte) ([][]byte, []*big.Int, error) {
 	// Build list of attribute in the correct order, with the metadata attribute prepended
-	namedAttributesAmount := len(common.AttributeTypesV2)
+	attributeTypes, ok := common.AttributeTypes[credentialVersion]
+	if !ok {
+		return nil, nil, errors.Errorf("The provided credentials version is not supported")
+	}
+
+	namedAttributesAmount := len(attributeTypes)
 
 	attributesBytes := make([][]byte, 0, namedAttributesAmount+1)
 	attributesBytes = append(attributesBytes, metadataAttribute)
 
 	for i := 0; i < namedAttributesAmount; i++ {
-		attributeType := common.AttributeTypesV2[i]
+		attributeType := attributeTypes[i]
 
 		v, ok := attributesMap[attributeType]
 		if !ok {
@@ -212,7 +220,7 @@ func computeAttributesList(attributesMap map[string]string, metadataAttribute []
 	}
 
 	// Compute attribute values
-	attributesInts, err := common.ComputeAttributeInts(attributesBytes)
+	attributesInts, err := common.ComputeAttributeInts(attributeTypes, attributesBytes)
 	if err != nil {
 		return nil, nil, errors.WrapPrefix(err, "Could not compute attributes", 0)
 	}
