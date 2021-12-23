@@ -12,6 +12,8 @@ import (
 	gabipool "github.com/privacybydesign/gabi/pool"
 )
 
+const DEFAULT_CREDENTIAL_VERSION = 2
+
 type Signer interface {
 	PrepareSign() (pkId string, issuerNonce *big.Int, err error)
 	Sign(credentialsAttributeList [][]*big.Int, proofUs []*big.Int, holderNonce *big.Int) (isms []*gabi.IssueSignatureMessage, err error)
@@ -55,6 +57,11 @@ func (iss *Issuer) PrepareIssue(credentialAmount int) (*common.PrepareIssueMessa
 }
 
 func (iss *Issuer) Issue(im *IssueMessage) ([]*common.CreateCredentialMessage, error) {
+	// TODO: Set default credentials version for backwards compatibility. Remove when no longer necessary
+	if im.CredentialVersion == 0 {
+		im.CredentialVersion = DEFAULT_CREDENTIAL_VERSION
+	}
+
 	// We need at least as much commitments as there are credentials issued
 	// Any additional commitments are just ignored
 	credentialAmount := len(im.CredentialsAttributes)
@@ -140,6 +147,11 @@ func (iss *Issuer) Issue(im *IssueMessage) ([]*common.CreateCredentialMessage, e
 }
 
 func (iss *Issuer) IssueStatic(sim *StaticIssueMessage) (proofPrefixed, proofIdentifier []byte, err error) {
+	// TODO: Set default credentials version for backwards compatibility. Remove when no longer necessary
+	if sim.CredentialVersion == 0 {
+		sim.CredentialVersion = DEFAULT_CREDENTIAL_VERSION
+	}
+
 	// Prepare issuance
 	pim, err := iss.PrepareIssue(1)
 	if err != nil {
