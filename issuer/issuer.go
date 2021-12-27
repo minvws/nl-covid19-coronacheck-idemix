@@ -15,9 +15,9 @@ import (
 const DEFAULT_CREDENTIAL_VERSION = 2
 
 type Signer interface {
-	PrepareSign() (pkId string, issuerNonce *big.Int, err error)
-	Sign(credentialsAttributeList [][]*big.Int, proofUs []*big.Int, holderNonce *big.Int) (isms []*gabi.IssueSignatureMessage, err error)
-	FindIssuerPk(kid string) (pk *gabi.PublicKey, err error)
+	PrepareSign(keyUsage string) (pkId string, issuerNonce *big.Int, err error)
+	Sign(keyUsage string, credentialsAttributeList [][]*big.Int, proofUs []*big.Int, holderNonce *big.Int) (isms []*gabi.IssueSignatureMessage, err error)
+	FindIssuerPkByUsage(keyUsage string) (pk *gabi.PublicKey, kid string, err error)
 	GetPrimePool() gabipool.PrimePool
 }
 
@@ -30,11 +30,13 @@ type IssueMessage struct {
 	IssueCommitmentMessage *gabi.IssueCommitmentMessage `json:"issueCommitmentMessage"`
 	CredentialsAttributes  []map[string]string          `json:"credentialsAttributes"`
 	CredentialVersion      int                          `json:"credentialVersion"`
+	KeyUsage               string                       `json:"keyUsage"`
 }
 
 type StaticIssueMessage struct {
 	CredentialAttributes map[string]string `json:"credentialAttributes"`
 	CredentialVersion    int               `json:"credentialVersion"`
+	KeyUsage             string            `json:"keyUsage"`
 }
 
 func New(signer Signer) *Issuer {
@@ -43,8 +45,8 @@ func New(signer Signer) *Issuer {
 	}
 }
 
-func (iss *Issuer) PrepareIssue(credentialAmount int) (*common.PrepareIssueMessage, error) {
-	issuerPkId, issuerNonce, err := iss.Signer.PrepareSign()
+func (iss *Issuer) PrepareIssue(keyUsage string, credentialAmount int) (*common.PrepareIssueMessage, error) {
+	issuerPkId, issuerNonce, err := iss.Signer.PrepareSign(keyUsage)
 	if err != nil {
 		return nil, err
 	}
@@ -76,10 +78,14 @@ func (iss *Issuer) Issue(im *IssueMessage) ([]*common.CreateCredentialMessage, e
 		return nil, err
 	}
 
-	// Get the public key that is used
-	pk, err := iss.Signer.FindIssuerPk(im.PrepareIssueMessage.IssuerPkId)
+	// Get the public key that is used, and check that it matches the prepare issue message
+	pk, kid, err := iss.Signer.FindIssuerPkByUsage(im.KeyUsage)
 	if err != nil {
 		return nil, errors.WrapPrefix(err, "Could not find public key that is used to issue credentials", 0)
+	}
+
+	if im.PrepareIssueMessage.IssuerPkId != kid {
+		return nil, errors.Errorf("Key specified by usage doesn't match prepare issue message public key id")
 	}
 
 	// For every credential, convert the the attribute map to a list of attribute ints,
@@ -123,7 +129,7 @@ func (iss *Issuer) Issue(im *IssueMessage) ([]*common.CreateCredentialMessage, e
 	}
 
 	// Sign all credentials
-	isms, err := iss.Signer.Sign(credentialsAttributeIntList, proofUs, im.IssueCommitmentMessage.Nonce2)
+	isms, err := iss.Signer.Sign(im.KeyUsage, credentialsAttributeIntList, proofUs, im.IssueCommitmentMessage.Nonce2)
 	if err != nil {
 		return nil, errors.WrapPrefix(err, "Could not sign", 0)
 	}
@@ -153,13 +159,21 @@ func (iss *Issuer) IssueStatic(sim *StaticIssueMessage) (proofPrefixed, proofIde
 	}
 
 	// Prepare issuance
-	pim, err := iss.PrepareIssue(1)
+	pim, err := iss.PrepareIssue(sim.KeyUsage, 1)
 	if err != nil {
 		return nil, nil, errors.WrapPrefix(err, "Could not create prepare issue message", 0)
 	}
 
+	// Get key for issuance, and construct a trivial function for the holder to retrieve the key
+	pk, _, err := iss.Signer.FindIssuerPkByUsage(sim.KeyUsage)
+	if err != nil {
+		return nil, nil, errors.WrapPrefix(err, "Could not find public key to issue static credential", 0)
+	}
+
+	findIssuerPkFunc := func(_ string) (*gabi.PublicKey, error) { return pk, nil }
+
 	// Create a single commitment
-	h := holder.New(iss.Signer.FindIssuerPk, sim.CredentialVersion)
+	h := holder.New(findIssuerPkFunc, sim.CredentialVersion)
 	holderSk := holder.GenerateSk()
 	credBuilders, icm, err := h.CreateCommitments(holderSk, pim)
 	if err != nil {
@@ -172,6 +186,7 @@ func (iss *Issuer) IssueStatic(sim *StaticIssueMessage) (proofPrefixed, proofIde
 		IssueCommitmentMessage: icm,
 		CredentialsAttributes:  []map[string]string{sim.CredentialAttributes},
 		CredentialVersion:      sim.CredentialVersion,
+		KeyUsage:               sim.KeyUsage,
 	})
 	if err != nil {
 		return nil, nil, errors.WrapPrefix(err, "Could not issue static credential", 0)
