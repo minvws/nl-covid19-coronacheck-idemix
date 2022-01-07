@@ -12,9 +12,9 @@ import (
 )
 
 type Key struct {
-	PkId   string
-	PkPath string
-	SkPath string
+	PkId   string `mapstructure:"public-key-id"`
+	PkPath string `mapstructure:"public-key-path"`
+	SkPath string `mapstructure:"private-key-path"`
 
 	pk *gabi.PublicKey
 	sk *gabi.PrivateKey
@@ -61,7 +61,7 @@ func (ls *LocalSigner) loadKeys() error {
 func (ls *LocalSigner) PrepareSign(keyUsage string) (pkId string, issuerNonce *big.Int, err error) {
 	key, ok := ls.UsageKeys[keyUsage]
 	if !ok {
-		return "", nil, errors.Errorf("Specified usage key is not present")
+		return "", nil, errors.Errorf("Specified usage key %s is not present", keyUsage)
 	}
 
 	return key.PkId, common.GenerateNonce(), nil
@@ -71,7 +71,7 @@ func (ls *LocalSigner) Sign(keyUsage string, credentialsAttributes [][]*big.Int,
 	// Get specified usage key, and create signer with a non-pooling gabipool
 	key, ok := ls.UsageKeys[keyUsage]
 	if !ok {
-		return nil, errors.Errorf("Specified usage key is not present")
+		return nil, errors.Errorf("Specified usage key %s is not present", keyUsage)
 	}
 
 	gabiSigner := gabi.NewIssuer(key.sk, key.pk, common.BigOne)
@@ -99,7 +99,7 @@ func (ls *LocalSigner) Sign(keyUsage string, credentialsAttributes [][]*big.Int,
 func (ls *LocalSigner) FindIssuerPkByUsage(usage string) (pk *gabi.PublicKey, kid string, err error) {
 	key, ok := ls.UsageKeys[usage]
 	if !ok {
-		return nil, "", errors.Errorf("Specified usage key is not present")
+		return nil, "", errors.Errorf("Specified usage key %s is not present", usage)
 	}
 
 	return key.pk, key.PkId, nil

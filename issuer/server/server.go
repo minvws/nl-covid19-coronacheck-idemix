@@ -16,13 +16,7 @@ type Configuration struct {
 	ListenAddress string
 	ListenPort    string
 
-	PublicKeyId    string
-	PublicKeyPath  string
-	PrivateKeyPath string
-
-	StaticPublicKeyId    string
-	StaticPublicKeyPath  string
-	StaticPrivateKeyPath string
+	UsageKeys map[string]*localsigner.Key
 
 	PrimePoolSize        uint64 // Size of the pool (in number of big ints)
 	PrimePoolLwm         uint64 // Low water mark for depletion detection
@@ -47,7 +41,10 @@ type IssueStaticResponse struct {
 	ProofIdentifier []byte `json:"proofIdentifier"`
 }
 
+// DEPRECATED: This constant is temporarily needed for backwards compatibility
 const DYNAMIC_KEY_USAGE = "dynamic"
+
+// DEPRECATED: This constant is temporarily needed for backwards compatibility
 const STATIC_KEY_USAGE = "static"
 
 func Run(config *Configuration) error {
@@ -65,13 +62,8 @@ func Run(config *Configuration) error {
 		)
 	}
 
-	usageKeys := map[string]*localsigner.Key{
-		DYNAMIC_KEY_USAGE: {PkId: config.PublicKeyId, PkPath: config.PublicKeyPath, SkPath: config.PrivateKeyPath},
-		STATIC_KEY_USAGE:  {PkId: config.StaticPublicKeyId, PkPath: config.StaticPublicKeyPath, SkPath: config.StaticPrivateKeyPath},
-	}
-
 	var err error
-	signer, err := localsigner.New(usageKeys, primePool)
+	signer, err := localsigner.New(config.UsageKeys, primePool)
 	if err != nil {
 		return errors.WrapPrefix(err, "Could not create local signer", 0)
 	}
