@@ -11,69 +11,81 @@ import (
 	gabipool "github.com/privacybydesign/gabi/pool"
 )
 
+type Key struct {
+	PkId   string `mapstructure:"public-key-id"`
+	PkPath string `mapstructure:"public-key-path"`
+	SkPath string `mapstructure:"private-key-path"`
+
+	pk *gabi.PublicKey
+	sk *gabi.PrivateKey
+}
+
 type LocalSigner struct {
-	PkId string
-	Pk   *gabi.PublicKey
-	sk   *gabi.PrivateKey
-
-	Pool gabipool.PrimePool
+	UsageKeys map[string]*Key
+	Pool      gabipool.PrimePool
 }
 
-func New(pkId, pkPath, skPath string, pool gabipool.PrimePool) (*LocalSigner, error) {
-	pk, err := gabi.NewPublicKeyFromFile(pkPath)
-	if err != nil {
-		msg := fmt.Sprintf("Could not load public key from file %s", pkPath)
-		return nil, errors.WrapPrefix(err, msg, 0)
+func New(usageKeys map[string]*Key, pool gabipool.PrimePool) (*LocalSigner, error) {
+	ls := &LocalSigner{
+		UsageKeys: usageKeys,
+		Pool:      pool,
 	}
 
-	sk, err := gabi.NewPrivateKeyFromFile(skPath, false)
+	err := ls.loadKeys()
 	if err != nil {
-		msg := fmt.Sprintf("Could not load private key from file %s", skPath)
-		return nil, errors.WrapPrefix(err, msg, 0)
+		return nil, errors.WrapPrefix(err, "Could not load local signer keys", 0)
 	}
 
-	return &LocalSigner{
-		PkId: pkId,
-		Pk:   pk,
-		sk:   sk,
-		Pool: pool,
-	}, nil
+	return ls, nil
 }
 
-func NewFromString(pkId, pkXML, skXML string, pool gabipool.PrimePool) (*LocalSigner, error) {
-	pk, err := gabi.NewPublicKeyFromXML(pkXML)
-	if err != nil {
-		return nil, errors.WrapPrefix(err, "Could not load public key from string", 0)
+func (ls *LocalSigner) loadKeys() error {
+	var err error
+	for _, key := range ls.UsageKeys {
+		key.pk, err = gabi.NewPublicKeyFromFile(key.PkPath)
+		if err != nil {
+			msg := fmt.Sprintf("Could not load public key from file %s", key.PkPath)
+			return errors.WrapPrefix(err, msg, 0)
+		}
+
+		key.sk, err = gabi.NewPrivateKeyFromFile(key.SkPath, false)
+		if err != nil {
+			msg := fmt.Sprintf("Could not load private key from file %s", key.SkPath)
+			return errors.WrapPrefix(err, msg, 0)
+		}
 	}
 
-	sk, err := gabi.NewPrivateKeyFromXML(skXML, false)
-	if err != nil {
-		return nil, errors.WrapPrefix(err, "Could not load private key from string", 0)
+	return nil
+}
+
+func (ls *LocalSigner) PrepareSign(keyUsage string) (pkId string, issuerNonce *big.Int, err error) {
+	key, ok := ls.UsageKeys[keyUsage]
+	if !ok {
+		return "", nil, errors.Errorf("Specified usage key %s is not present", keyUsage)
 	}
 
-	return &LocalSigner{
-		PkId: pkId,
-		Pk:   pk,
-		sk:   sk,
-		Pool: pool,
-	}, nil
+	return key.PkId, common.GenerateNonce(), nil
 }
 
-func (ls *LocalSigner) PrepareSign() (pkId string, issuerNonce *big.Int, err error) {
-	return ls.PkId, common.GenerateNonce(), nil
-}
+func (ls *LocalSigner) Sign(keyUsage string, credentialsAttributes [][]*big.Int, proofUs []*big.Int, holderNonce *big.Int) (isms []*gabi.IssueSignatureMessage, err error) {
+	// Get specified usage key, and create signer with a non-pooling gabipool
+	key, ok := ls.UsageKeys[keyUsage]
+	if !ok {
+		return nil, errors.Errorf("Specified usage key %s is not present", keyUsage)
+	}
 
-func (ls *LocalSigner) Sign(credentialsAttributes [][]*big.Int, proofUs []*big.Int, holderNonce *big.Int) (isms []*gabi.IssueSignatureMessage, err error) {
+	gabiSigner := gabi.NewIssuer(key.sk, key.pk, common.BigOne)
+	gabiPool := gabipool.NewRandomPool()
+
+	// Make sure the amount of issued credentials matches the amount of commitments, then sign each credential
 	credentialAmount := len(credentialsAttributes)
 	if credentialAmount != len(proofUs) {
 		return nil, errors.Errorf("Amount of credentials doesn't match amount of proofUs")
 	}
 
-	gabiSigner := gabi.NewIssuer(ls.sk, ls.Pk, common.BigOne)
-
 	isms = make([]*gabi.IssueSignatureMessage, 0, credentialAmount)
 	for i := 0; i < credentialAmount; i++ {
-		ism, err := gabiSigner.IssueSignature(ls.Pool, proofUs[i], credentialsAttributes[i], nil, holderNonce, []int{})
+		ism, err := gabiSigner.IssueSignature(gabiPool, proofUs[i], credentialsAttributes[i], nil, holderNonce, []int{})
 		if err != nil {
 			return nil, errors.WrapPrefix(err, "Could not create gabi signature", 0)
 		}
@@ -84,12 +96,13 @@ func (ls *LocalSigner) Sign(credentialsAttributes [][]*big.Int, proofUs []*big.I
 	return isms, nil
 }
 
-func (ls *LocalSigner) FindIssuerPk(kid string) (pk *gabi.PublicKey, err error) {
-	if kid != ls.PkId {
-		return nil, errors.Errorf("Could not find public key by key id")
+func (ls *LocalSigner) FindIssuerPkByUsage(usage string) (pk *gabi.PublicKey, kid string, err error) {
+	key, ok := ls.UsageKeys[usage]
+	if !ok {
+		return nil, "", errors.Errorf("Specified usage key %s is not present", usage)
 	}
 
-	return ls.Pk, nil
+	return key.pk, key.PkId, nil
 }
 
 func (ls *LocalSigner) GetPrimePool() gabipool.PrimePool {

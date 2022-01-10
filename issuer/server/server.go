@@ -16,13 +16,7 @@ type Configuration struct {
 	ListenAddress string
 	ListenPort    string
 
-	PublicKeyId    string
-	PublicKeyPath  string
-	PrivateKeyPath string
-
-	StaticPublicKeyId    string
-	StaticPublicKeyPath  string
-	StaticPrivateKeyPath string
+	UsageKeys map[string]*localsigner.Key
 
 	PrimePoolSize        uint64 // Size of the pool (in number of big ints)
 	PrimePoolLwm         uint64 // Low water mark for depletion detection
@@ -33,12 +27,12 @@ type Configuration struct {
 }
 
 type server struct {
-	config        *Configuration
-	dynamicIssuer *issuer.Issuer
-	staticIssuer  *issuer.Issuer
+	config *Configuration
+	issuer *issuer.Issuer
 }
 
 type PrepareIssueRequest struct {
+	KeyUsage         string
 	CredentialAmount int
 }
 
@@ -47,13 +41,18 @@ type IssueStaticResponse struct {
 	ProofIdentifier []byte `json:"proofIdentifier"`
 }
 
+// DEPRECATED: This constant is temporarily needed for backwards compatibility
+const DYNAMIC_KEY_USAGE = "dynamic"
+
+// DEPRECATED: This constant is temporarily needed for backwards compatibility
+const STATIC_KEY_USAGE = "static"
+
 func Run(config *Configuration) error {
-	staticPrimePool := gabipool.NewRandomPool()
-	dynamicPrimePool := gabipool.NewRandomPool()
+	primePool := gabipool.NewRandomPool()
 
 	// Initialize dynamic in-memory prime pool when its configured size > 0
 	if config.PrimePoolSize > 0 {
-		dynamicPrimePool = pool.NewMemoryPool(
+		primePool = pool.NewMemoryPool(
 			config.PrimePoolSize,
 			config.PrimePoolLwm,
 			config.PrimePoolHwm,
@@ -64,21 +63,15 @@ func Run(config *Configuration) error {
 	}
 
 	var err error
-	dynamicSigner, err := localsigner.New(config.PublicKeyId, config.PublicKeyPath, config.PrivateKeyPath, dynamicPrimePool)
-	if err != nil {
-		return errors.WrapPrefix(err, "Could not create local signer", 0)
-	}
-
-	staticSigner, err := localsigner.New(config.StaticPublicKeyId, config.StaticPublicKeyPath, config.StaticPrivateKeyPath, staticPrimePool)
+	signer, err := localsigner.New(config.UsageKeys, primePool)
 	if err != nil {
 		return errors.WrapPrefix(err, "Could not create local signer", 0)
 	}
 
 	// Serve
 	s := &server{
-		config:        config,
-		dynamicIssuer: issuer.New(dynamicSigner),
-		staticIssuer:  issuer.New(staticSigner),
+		config: config,
+		issuer: issuer.New(signer),
 	}
 
 	err = s.Serve()
@@ -132,7 +125,7 @@ func jsonPostHandler(next http.Handler) http.Handler {
 }
 
 func (s *server) handleStats(w http.ResponseWriter, r *http.Request) {
-	responseJson, err := s.dynamicIssuer.Signer.GetPrimePool().StatsJSON()
+	responseJson, err := s.issuer.Signer.GetPrimePool().StatsJSON()
 	if err != nil {
 		msg := "Could not JSON marshal statistics"
 		writeError(w, http.StatusInternalServerError, errors.WrapPrefix(err, msg, 0))
@@ -144,7 +137,7 @@ func (s *server) handleStats(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) handlePrepareIssue(w http.ResponseWriter, r *http.Request) {
-	pir := &PrepareIssueRequest{}
+	pir := &PrepareIssueRequest{KeyUsage: DYNAMIC_KEY_USAGE}
 	err := json.NewDecoder(r.Body).Decode(pir)
 	if err != nil {
 		msg := "Could not JSON unmarshal prepare issue request"
@@ -152,7 +145,7 @@ func (s *server) handlePrepareIssue(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	pim, err := s.dynamicIssuer.PrepareIssue(pir.CredentialAmount)
+	pim, err := s.issuer.PrepareIssue(pir.KeyUsage, pir.CredentialAmount)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
@@ -170,7 +163,7 @@ func (s *server) handlePrepareIssue(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) handleIssue(w http.ResponseWriter, r *http.Request) {
-	issueMessage := &issuer.IssueMessage{}
+	issueMessage := &issuer.IssueMessage{KeyUsage: DYNAMIC_KEY_USAGE}
 	err := json.NewDecoder(r.Body).Decode(issueMessage)
 	if err != nil {
 		msg := "Could not JSON unmarshal issue message"
@@ -185,7 +178,7 @@ func (s *server) handleIssue(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	createCredentialMessages, err := s.dynamicIssuer.Issue(issueMessage)
+	createCredentialMessages, err := s.issuer.Issue(issueMessage)
 	if err != nil {
 		msg := "Could not issue credentials"
 		writeError(w, http.StatusInternalServerError, errors.WrapPrefix(err, msg, 0))
@@ -203,7 +196,7 @@ func (s *server) handleIssue(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) handleIssueStatic(w http.ResponseWriter, r *http.Request) {
-	sim := &issuer.StaticIssueMessage{}
+	sim := &issuer.StaticIssueMessage{KeyUsage: STATIC_KEY_USAGE}
 	err := json.NewDecoder(r.Body).Decode(sim)
 	if err != nil {
 		msg := "Could not JSON unmarshal static issue message"
@@ -211,7 +204,7 @@ func (s *server) handleIssueStatic(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	proofPrefixed, proofIdentifier, err := s.staticIssuer.IssueStatic(sim)
+	proofPrefixed, proofIdentifier, err := s.issuer.IssueStatic(sim)
 	if err != nil {
 		msg := "Could not issue static proof"
 		writeError(w, http.StatusInternalServerError, errors.WrapPrefix(err, msg, 0))
