@@ -68,14 +68,13 @@ func (ls *LocalSigner) PrepareSign(keyUsage string) (pkId string, issuerNonce *b
 }
 
 func (ls *LocalSigner) Sign(keyUsage string, credentialsAttributes [][]*big.Int, proofUs []*big.Int, holderNonce *big.Int) (isms []*gabi.IssueSignatureMessage, err error) {
-	// Get specified usage key, and create signer with a non-pooling gabipool
+	// Get specified usage key
 	key, ok := ls.UsageKeys[keyUsage]
 	if !ok {
 		return nil, errors.Errorf("Specified usage key %s is not present", keyUsage)
 	}
 
 	gabiSigner := gabi.NewIssuer(key.sk, key.pk, common.BigOne)
-	gabiPool := gabipool.NewRandomPool()
 
 	// Make sure the amount of issued credentials matches the amount of commitments, then sign each credential
 	credentialAmount := len(credentialsAttributes)
@@ -85,7 +84,7 @@ func (ls *LocalSigner) Sign(keyUsage string, credentialsAttributes [][]*big.Int,
 
 	isms = make([]*gabi.IssueSignatureMessage, 0, credentialAmount)
 	for i := 0; i < credentialAmount; i++ {
-		ism, err := gabiSigner.IssueSignature(gabiPool, proofUs[i], credentialsAttributes[i], nil, holderNonce, []int{})
+		ism, err := gabiSigner.IssueSignature(ls.Pool, proofUs[i], credentialsAttributes[i], nil, holderNonce, []int{})
 		if err != nil {
 			return nil, errors.WrapPrefix(err, "Could not create gabi signature", 0)
 		}
