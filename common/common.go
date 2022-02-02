@@ -63,7 +63,7 @@ type ProofSerializationV2 struct {
 
 type FindIssuerPkFunc func(kid string) (pk *gabi.PublicKey, err error)
 
-type PrepareIssueMessage struct {
+type IssueSpecificationMessage struct {
 	IssuerPkId       string   `json:"issuerPkId"`
 	IssuerNonce      *big.Int `json:"issuerNonce"`
 	CredentialAmount int      `json:"credentialAmount"`

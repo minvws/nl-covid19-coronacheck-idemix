@@ -45,7 +45,10 @@ func testIssuanceDisclosureVerificationFlow(t *testing.T, credentialVersion int)
 	extraCommitments := 7
 
 	// Issuance dance
-	pim, err := iss.PrepareIssue(testKeyUsage, credentialAmount+extraCommitments)
+	pim, err := iss.PrepareIssue(&issuer.PrepareIssueRequestMessage{
+		CredentialAmount: credentialAmount + extraCommitments,
+		KeyUsage:         testKeyUsage,
+	})
 	if err != nil {
 		t.Fatal("Could not get prepareIssueMessage:", err.Error())
 	}
@@ -179,7 +182,10 @@ func benchmarkIssueMultiple(b *testing.B, withPrimePool bool) {
 	credentialAmount := 32
 	holderSk := holder.GenerateSk()
 
-	pim, err := iss.PrepareIssue(testKeyUsage, credentialAmount)
+	pim, err := iss.PrepareIssue(&issuer.PrepareIssueRequestMessage{
+		KeyUsage:         testKeyUsage,
+		CredentialAmount: credentialAmount,
+	})
 	if err != nil {
 		b.Fatal("Could not create prepare issue message", err.Error())
 	}
@@ -244,7 +250,9 @@ func buildCredentialsAttributes(credentialAmount int, credentialVersion int) []m
 func createIHV(t TB, credentialVersion int, withPrimePool bool) (*issuer.Issuer, *holder.Holder, *big.Int, *verifier.Verifier) {
 	iss := createIssuer(t, withPrimePool)
 
-	pk, _, _ := iss.Signer.FindIssuerPkByUsage(testKeyUsage)
+	pk, _, _ := iss.Signer.FindIssuerPk(&localsigner.KeySpecification{
+		KeyUsage: testKeyUsage,
+	})
 	h, holderSk := createHolder(pk, credentialVersion)
 	v := createVerifier(pk)
 
@@ -264,11 +272,12 @@ func createIssuer(t TB, withPrimePool bool) *issuer.Issuer {
 		primePool = gabipool.NewRandomPool()
 	}
 
-	pks := map[string]*localsigner.Key{
-		testKeyUsage: {
-			PkId:   testKID,
-			PkPath: "./testdata/pk.xml",
-			SkPath: "./testdata/sk.xml",
+	pks := []*localsigner.Key{
+		{
+			KeyUsage:      testKeyUsage,
+			KeyIdentifier: testKID,
+			PkPath:        "./testdata/pk.xml",
+			SkPath:        "./testdata/sk.xml",
 		},
 	}
 	ls, err := localsigner.New(pks, primePool)

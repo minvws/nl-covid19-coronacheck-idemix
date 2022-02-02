@@ -16,7 +16,7 @@ type Configuration struct {
 	ListenAddress string
 	ListenPort    string
 
-	UsageKeys map[string]*localsigner.Key
+	Keys []*localsigner.Key
 
 	PrimePoolSize        uint64 // Size of the pool (in number of big ints)
 	PrimePoolLwm         uint64 // Low water mark for depletion detection
@@ -31,11 +31,6 @@ type server struct {
 	issuer *issuer.Issuer
 }
 
-type PrepareIssueRequest struct {
-	KeyUsage         string
-	CredentialAmount int
-}
-
 type IssueStaticResponse struct {
 	QR              string `json:"qr"`
 	ProofIdentifier []byte `json:"proofIdentifier"`
@@ -43,9 +38,6 @@ type IssueStaticResponse struct {
 
 // DEPRECATED: This constant is temporarily needed for backwards compatibility
 const DYNAMIC_KEY_USAGE = "dynamic"
-
-// DEPRECATED: This constant is temporarily needed for backwards compatibility
-const STATIC_KEY_USAGE = "static"
 
 func Run(config *Configuration) error {
 	primePool := gabipool.NewRandomPool()
@@ -63,7 +55,7 @@ func Run(config *Configuration) error {
 	}
 
 	var err error
-	signer, err := localsigner.New(config.UsageKeys, primePool)
+	signer, err := localsigner.New(config.Keys, primePool)
 	if err != nil {
 		return errors.WrapPrefix(err, "Could not create local signer", 0)
 	}
@@ -137,7 +129,7 @@ func (s *server) handleStats(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) handlePrepareIssue(w http.ResponseWriter, r *http.Request) {
-	pir := &PrepareIssueRequest{KeyUsage: DYNAMIC_KEY_USAGE}
+	pir := &issuer.PrepareIssueRequestMessage{KeyUsage: DYNAMIC_KEY_USAGE}
 	err := json.NewDecoder(r.Body).Decode(pir)
 	if err != nil {
 		msg := "Could not JSON unmarshal prepare issue request"
@@ -145,7 +137,7 @@ func (s *server) handlePrepareIssue(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	pim, err := s.issuer.PrepareIssue(pir.KeyUsage, pir.CredentialAmount)
+	pim, err := s.issuer.PrepareIssue(pir)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
@@ -172,7 +164,8 @@ func (s *server) handleIssue(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// TODO: Better handle this with a separate unmarshaler
-	if issueMessage.CredentialsAttributes == nil || issueMessage.IssueCommitmentMessage == nil || issueMessage.PrepareIssueMessage == nil {
+	if issueMessage.CredentialsAttributes == nil || issueMessage.IssueCommitmentMessage == nil ||
+		issueMessage.PrepareIssueMessage == nil || (issueMessage.KeyUsage == "" && issueMessage.KeyIdentifier == "") {
 		msg := "A required field of issue message is missing"
 		writeError(w, http.StatusBadRequest, errors.Errorf(msg))
 		return
@@ -196,7 +189,7 @@ func (s *server) handleIssue(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) handleIssueStatic(w http.ResponseWriter, r *http.Request) {
-	sim := &issuer.StaticIssueMessage{KeyUsage: STATIC_KEY_USAGE}
+	sim := &issuer.StaticIssueMessage{}
 	err := json.NewDecoder(r.Body).Decode(sim)
 	if err != nil {
 		msg := "Could not JSON unmarshal static issue message"

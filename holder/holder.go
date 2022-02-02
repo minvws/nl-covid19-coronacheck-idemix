@@ -25,7 +25,7 @@ func GenerateSk() *big.Int {
 	return common.RandomBigInt(common.GabiSystemParameters.Lm)
 }
 
-func (h *Holder) CreateCommitments(holderSk *big.Int, pim *common.PrepareIssueMessage) ([]gabi.ProofBuilder, *gabi.IssueCommitmentMessage, error) {
+func (h *Holder) CreateCommitments(holderSk *big.Int, pim *common.IssueSpecificationMessage) ([]gabi.ProofBuilder, *gabi.IssueCommitmentMessage, error) {
 	issuerPk, err := h.findIssuerPk(pim.IssuerPkId)
 	if err != nil {
 		return nil, nil, err
