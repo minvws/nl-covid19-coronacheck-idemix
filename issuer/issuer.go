@@ -2,6 +2,7 @@ package issuer
 
 import (
 	"encoding/asn1"
+	"github.com/minvws/nl-covid19-coronacheck-idemix/issuer/localsigner"
 	"time"
 
 	"github.com/go-errors/errors"
@@ -12,12 +13,10 @@ import (
 	gabipool "github.com/privacybydesign/gabi/pool"
 )
 
-const DEFAULT_CREDENTIAL_VERSION = 2
-
 type Signer interface {
-	PrepareSign(keyUsage string) (pkId string, issuerNonce *big.Int, err error)
-	Sign(keyUsage string, credentialsAttributeList [][]*big.Int, proofUs []*big.Int, holderNonce *big.Int) (isms []*gabi.IssueSignatureMessage, err error)
-	FindIssuerPkByUsage(keyUsage string) (pk *gabi.PublicKey, kid string, err error)
+	PrepareSign(keySpecification *localsigner.KeySpecification) (pkId string, issuerNonce *big.Int, err error)
+	Sign(keySpecification *localsigner.KeySpecification, credentialsAttributeList [][]*big.Int, proofUs []*big.Int, holderNonce *big.Int) (isms []*gabi.IssueSignatureMessage, err error)
+	FindIssuerPk(keySpecification *localsigner.KeySpecification) (pk *gabi.PublicKey, kid string, err error)
 	GetPrimePool() gabipool.PrimePool
 }
 
@@ -25,18 +24,32 @@ type Issuer struct {
 	Signer Signer
 }
 
+type PrepareIssueRequestMessage struct {
+	KeyIdentifier    string `json:"keyIdentifier"`
+	CredentialAmount int    `json:"credentialAmount"`
+
+	// DEPRECATED: This field is deprecated and should be removed when callers have been migrated
+	KeyUsage string `json:"keyUsage"`
+}
+
 type IssueMessage struct {
-	PrepareIssueMessage    *common.PrepareIssueMessage  `json:"prepareIssueMessage"`
-	IssueCommitmentMessage *gabi.IssueCommitmentMessage `json:"issueCommitmentMessage"`
-	CredentialsAttributes  []map[string]string          `json:"credentialsAttributes"`
-	CredentialVersion      int                          `json:"credentialVersion"`
-	KeyUsage               string                       `json:"keyUsage"`
+	PrepareIssueMessage    *common.IssueSpecificationMessage `json:"prepareIssueMessage"`
+	IssueCommitmentMessage *gabi.IssueCommitmentMessage      `json:"issueCommitmentMessage"`
+	CredentialsAttributes  []map[string]string               `json:"credentialsAttributes"`
+	CredentialVersion      int                               `json:"credentialVersion"`
+	KeyIdentifier          string                            `json:"keyIdentifier"`
+
+	// DEPRECATED: This field is deprecated and should be removed when callers have been migrated
+	KeyUsage string `json:"keyUsage"`
 }
 
 type StaticIssueMessage struct {
 	CredentialAttributes map[string]string `json:"credentialAttributes"`
 	CredentialVersion    int               `json:"credentialVersion"`
-	KeyUsage             string            `json:"keyUsage"`
+	KeyIdentifier        string            `json:"keyIdentifier"`
+
+	// DEPRECATED: This field is deprecated and should be removed when callers have been migrated
+	KeyUsage string `json:"keyUsage"`
 }
 
 func New(signer Signer) *Issuer {
@@ -45,25 +58,20 @@ func New(signer Signer) *Issuer {
 	}
 }
 
-func (iss *Issuer) PrepareIssue(keyUsage string, credentialAmount int) (*common.PrepareIssueMessage, error) {
-	issuerPkId, issuerNonce, err := iss.Signer.PrepareSign(keyUsage)
+func (iss *Issuer) PrepareIssue(pir *PrepareIssueRequestMessage) (*common.IssueSpecificationMessage, error) {
+	issuerPkId, issuerNonce, err := iss.Signer.PrepareSign(pir.buildSpecification())
 	if err != nil {
 		return nil, err
 	}
 
-	return &common.PrepareIssueMessage{
+	return &common.IssueSpecificationMessage{
 		IssuerPkId:       issuerPkId,
 		IssuerNonce:      issuerNonce,
-		CredentialAmount: credentialAmount,
+		CredentialAmount: pir.CredentialAmount,
 	}, nil
 }
 
 func (iss *Issuer) Issue(im *IssueMessage) ([]*common.CreateCredentialMessage, error) {
-	// TODO: Set default credentials version for backwards compatibility. Remove when no longer necessary
-	if im.CredentialVersion == 0 {
-		im.CredentialVersion = DEFAULT_CREDENTIAL_VERSION
-	}
-
 	// We need at least as much commitments as there are credentials issued
 	// Any additional commitments are just ignored
 	credentialAmount := len(im.CredentialsAttributes)
@@ -79,7 +87,7 @@ func (iss *Issuer) Issue(im *IssueMessage) ([]*common.CreateCredentialMessage, e
 	}
 
 	// Get the public key that is used, and check that it matches the prepare issue message
-	pk, kid, err := iss.Signer.FindIssuerPkByUsage(im.KeyUsage)
+	pk, kid, err := iss.Signer.FindIssuerPk(im.buildSpecification())
 	if err != nil {
 		return nil, errors.WrapPrefix(err, "Could not find public key that is used to issue credentials", 0)
 	}
@@ -129,7 +137,7 @@ func (iss *Issuer) Issue(im *IssueMessage) ([]*common.CreateCredentialMessage, e
 	}
 
 	// Sign all credentials
-	isms, err := iss.Signer.Sign(im.KeyUsage, credentialsAttributeIntList, proofUs, im.IssueCommitmentMessage.Nonce2)
+	isms, err := iss.Signer.Sign(im.buildSpecification(), credentialsAttributeIntList, proofUs, im.IssueCommitmentMessage.Nonce2)
 	if err != nil {
 		return nil, errors.WrapPrefix(err, "Could not sign", 0)
 	}
@@ -153,19 +161,20 @@ func (iss *Issuer) Issue(im *IssueMessage) ([]*common.CreateCredentialMessage, e
 }
 
 func (iss *Issuer) IssueStatic(sim *StaticIssueMessage) (proofPrefixed, proofIdentifier []byte, err error) {
-	// TODO: Set default credentials version for backwards compatibility. Remove when no longer necessary
-	if sim.CredentialVersion == 0 {
-		sim.CredentialVersion = DEFAULT_CREDENTIAL_VERSION
-	}
-
 	// Prepare issuance
-	pim, err := iss.PrepareIssue(sim.KeyUsage, 1)
+	ks := sim.buildSpecification()
+
+	pim, err := iss.PrepareIssue(&PrepareIssueRequestMessage{
+		CredentialAmount: 1,
+		KeyIdentifier:    ks.KeyIdentifier,
+		KeyUsage:         ks.KeyUsage,
+	})
 	if err != nil {
 		return nil, nil, errors.WrapPrefix(err, "Could not create prepare issue message", 0)
 	}
 
 	// Get key for issuance, and construct a trivial function for the holder to retrieve the key
-	pk, _, err := iss.Signer.FindIssuerPkByUsage(sim.KeyUsage)
+	pk, _, err := iss.Signer.FindIssuerPk(sim.buildSpecification())
 	if err != nil {
 		return nil, nil, errors.WrapPrefix(err, "Could not find public key to issue static credential", 0)
 	}
@@ -187,6 +196,7 @@ func (iss *Issuer) IssueStatic(sim *StaticIssueMessage) (proofPrefixed, proofIde
 		CredentialsAttributes:  []map[string]string{sim.CredentialAttributes},
 		CredentialVersion:      sim.CredentialVersion,
 		KeyUsage:               sim.KeyUsage,
+		KeyIdentifier:          sim.KeyIdentifier,
 	})
 	if err != nil {
 		return nil, nil, errors.WrapPrefix(err, "Could not issue static credential", 0)
@@ -253,4 +263,28 @@ func computeAttributesList(credentialVersion int, attributesMap map[string]strin
 	}
 
 	return attributesBytes, attributesInts, nil
+}
+
+// DEPRECATED: This struct is function and should be removed when callers have been migrated
+func (pir *PrepareIssueRequestMessage) buildSpecification() *localsigner.KeySpecification {
+	return &localsigner.KeySpecification{
+		KeyIdentifier: pir.KeyIdentifier,
+		KeyUsage:      pir.KeyUsage,
+	}
+}
+
+// DEPRECATED: This struct is temporary and should be removed when callers have been migrated
+func (im *IssueMessage) buildSpecification() *localsigner.KeySpecification {
+	return &localsigner.KeySpecification{
+		KeyIdentifier: im.KeyIdentifier,
+		KeyUsage:      im.KeyUsage,
+	}
+}
+
+// DEPRECATED: This struct is temporary and should be removed when callers have been migrated
+func (sim *StaticIssueMessage) buildSpecification() *localsigner.KeySpecification {
+	return &localsigner.KeySpecification{
+		KeyIdentifier: sim.KeyIdentifier,
+		KeyUsage:      sim.KeyUsage,
+	}
 }

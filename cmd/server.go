@@ -41,8 +41,7 @@ func setServerFlags(cmd *cobra.Command) {
 	flags.String("listen-address", "localhost", "address at which to listen")
 	flags.String("listen-port", "4001", "port at which to listen")
 
-	flags.String("public-key-usages", "dynamic,static", "Public key usages, when no keys map has been provided through configuration")
-	flags.String("public-key-id", "TST-KEY-01", "Public key identifier, when no keys map has been provided through configuration")
+	flags.String("key-identifiers", "TST-KEY-01", "Public key identifiers, comma separated, when no keys map has been provided through configuration")
 	flags.String("public-key-path", "pk.xml", "Path to public key, when no keys map has been provided through configuration")
 	flags.String("private-key-path", "sk.xml", "Path to private key, when no keys map has been provided through configuration")
 
@@ -74,21 +73,21 @@ func configureServer(cmd *cobra.Command) (*server.Configuration, error) {
 	}
 
 	// Try to unmarshal a usage key configuration from the configuration file
-	usageKeys := map[string]*localsigner.Key{}
-	err = viper.UnmarshalKey("usage-keys", &usageKeys)
+	keys := []*localsigner.Key{}
+	err = viper.UnmarshalKey("keys", &keys)
 	if err != nil {
 		return nil, errors.WrapPrefix(err, "Could not unmarshal usage keys configuration", 0)
 	}
 
 	// If no usages keys were provided, add the default that is provided as command line option
-	if len(usageKeys) == 0 {
-		usages := viper.GetString("public-key-usages")
-		for _, usage := range strings.Split(usages, ",") {
-			usageKeys[usage] = &localsigner.Key{
-				PkId:   viper.GetString("public-key-id"),
-				PkPath: viper.GetString("public-key-path"),
-				SkPath: viper.GetString("private-key-path"),
-			}
+	if len(keys) == 0 {
+		identifiers := viper.GetString("key-identifiers")
+		for _, identifier := range strings.Split(identifiers, ",") {
+			keys = append(keys, &localsigner.Key{
+				KeyIdentifier: identifier,
+				PkPath:        viper.GetString("public-key-path"),
+				SkPath:        viper.GetString("private-key-path"),
+			})
 		}
 	}
 
@@ -96,7 +95,7 @@ func configureServer(cmd *cobra.Command) (*server.Configuration, error) {
 		ListenAddress: viper.GetString("listen-address"),
 		ListenPort:    viper.GetString("listen-port"),
 
-		UsageKeys: usageKeys,
+		Keys: keys,
 
 		PrimePoolSize:        viper.GetUint64("prime-pool-size"),
 		PrimePoolLwm:         viper.GetUint64("prime-pool-lwm"),
