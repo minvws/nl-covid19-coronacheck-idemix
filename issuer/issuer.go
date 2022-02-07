@@ -196,6 +196,7 @@ func (iss *Issuer) IssueStatic(sim *StaticIssueMessage) (proofPrefixed, proofIde
 		CredentialsAttributes:  []map[string]string{sim.CredentialAttributes},
 		CredentialVersion:      sim.CredentialVersion,
 		KeyUsage:               sim.KeyUsage,
+		KeyIdentifier:          sim.KeyIdentifier,
 	})
 	if err != nil {
 		return nil, nil, errors.WrapPrefix(err, "Could not issue static credential", 0)
