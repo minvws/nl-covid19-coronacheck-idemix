@@ -212,7 +212,7 @@ func (iss *Issuer) IssueStatic(sim *StaticIssueMessage) (proofPrefixed, proofIde
 	}
 
 	// Disclose to create the QR, with a zero disclosure timestamp
-	proofPrefixed, proofIdentifier, err = h.DiscloseAllWithTimeQREncoded(holderSk, creds[0], time.Unix(0, 0))
+	proofPrefixed, proofIdentifier, err = h.DiscloseWithTimeQREncoded(holderSk, creds[0], false, time.Unix(0, 0))
 	if err != nil {
 		return nil, nil, errors.WrapPrefix(err, "Could not disclose credential", 0)
 	}

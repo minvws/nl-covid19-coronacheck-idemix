@@ -10,8 +10,8 @@ import (
 	"time"
 )
 
-func (h *Holder) DiscloseAllWithTimeQREncoded(holderSk *big.Int, cred *gabi.Credential, now time.Time) (qr, proofIdentifier []byte, err error) {
-	proofAsn1, proofIdentifier, err := h.DiscloseAllWithTime(holderSk, cred, now)
+func (h *Holder) DiscloseWithTimeQREncoded(holderSk *big.Int, cred *gabi.Credential, hideCategory bool, now time.Time) (qr, proofIdentifier []byte, err error) {
+	proofAsn1, proofIdentifier, err := h.DiscloseWithTime(holderSk, cred, hideCategory, now)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -23,13 +23,13 @@ func (h *Holder) DiscloseAllWithTimeQREncoded(holderSk *big.Int, cred *gabi.Cred
 	}
 
 	// Add prefix
-	prefix := []byte{'N', 'L', common.ProofVersionByte, ':'}
+	prefix := []byte{'N', 'L', common.ProofVersionByteV3, ':'}
 	qr = append(prefix, proofBase45...)
 
 	return qr, proofIdentifier, nil
 }
 
-func (h *Holder) DiscloseAllWithTime(holderSk *big.Int, cred *gabi.Credential, now time.Time) (proofAsn1, proofIdentifier []byte, err error) {
+func (h *Holder) DiscloseWithTime(holderSk *big.Int, cred *gabi.Credential, hideCategory bool, now time.Time) (proofAsn1, proofIdentifier []byte, err error) {
 	attributesAmount := len(cred.Attributes)
 	if attributesAmount < 2 {
 		return nil, nil, errors.Errorf("Invalid amount of credential attributes")
@@ -38,20 +38,33 @@ func (h *Holder) DiscloseAllWithTime(holderSk *big.Int, cred *gabi.Credential, n
 	// Set the holderSk as first attribute of the credential
 	cred.Attributes[0] = holderSk
 
-	// Retrieve the public key from the credential metadata
-	err = h.setCredentialPublicKey(cred)
+	// Decode the metadata attribute and gather version and public key
+	_, issuerPkId, attributeTypes, err := common.DecodeMetadataAttribute(cred.Attributes[1])
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, errors.WrapPrefix(err, "Could not decode metadata attribute", 0)
+	}
+
+	if len(attributeTypes) != attributesAmount-2 {
+		return nil, nil, errors.Errorf("Unexpected amount of attributes in credential")
+	}
+
+	// Retrieve and set the public key from the metadata
+	cred.Pk, err = h.findIssuerPk(issuerPkId)
+	if err != nil {
+		return nil, nil, errors.WrapPrefix(err, "Could find issuer public key", 0)
 	}
 
 	// Use the time as 'challenge' (that can be precomputed and replayed, indeed)
 	disclosureTimeSeconds := now.Unix()
 	challenge := common.CalculateTimeBasedChallenge(disclosureTimeSeconds)
 
-	// Build proof that discloses all attributes except the secret key
-	var disclosedIndices []int
-	for i := 1; i < attributesAmount; i++ {
-		disclosedIndices = append(disclosedIndices, i)
+	// Build proof that discloses all attributes including the metadata,
+	//  but except the secret key and possibly the category
+	disclosedIndices := []int{1}
+	for i, attributeType := range attributeTypes {
+		if !hideCategory || attributeType != "category" {
+			disclosedIndices = append(disclosedIndices, i+2)
+		}
 	}
 
 	var dpbs gabi.ProofBuilderList
@@ -70,17 +83,22 @@ func (h *Holder) DiscloseAllWithTime(holderSk *big.Int, cred *gabi.Credential, n
 	proof := proofList[0].(*gabi.ProofD)
 
 	// Serialize proof inside an asn.1 structure
-	ps := common.ProofSerializationV2{
+	ps := common.ProofSerializationV3{
 		DisclosureTimeSeconds: disclosureTimeSeconds,
 		C:                     proof.C.Go(),
 		A:                     proof.A.Go(),
 		EResponse:             proof.EResponse.Go(),
 		VResponse:             proof.VResponse.Go(),
-		AResponse:             proof.AResponses[0].Go(),
 	}
 
-	for i := 1; i < attributesAmount; i++ {
-		ps.ADisclosed = append(ps.ADisclosed, proof.ADisclosed[i].Go())
+	ps.AResponses = append(ps.AResponses, proof.AResponses[0].Go())
+	ps.ADisclosed = append(ps.ADisclosed, proof.ADisclosed[1].Go())
+	for i, attributeType := range attributeTypes {
+		if !hideCategory || attributeType != "category" {
+			ps.ADisclosed = append(ps.ADisclosed, proof.ADisclosed[i+2].Go())
+		} else {
+			ps.AResponses = append(ps.AResponses, proof.AResponses[i+2].Go())
+		}
 	}
 
 	proofAsn1, err = asn1.Marshal(ps)
