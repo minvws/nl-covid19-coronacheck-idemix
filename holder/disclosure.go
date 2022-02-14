@@ -111,20 +111,3 @@ func (h *Holder) DiscloseWithTime(holderSk *big.Int, cred *gabi.Credential, hide
 
 	return proofAsn1, proofIdentifier, nil
 }
-
-func (h *Holder) setCredentialPublicKey(cred *gabi.Credential) error {
-	metadataAttributeBytes := common.DecodeAttributeInt(cred.Attributes[1])
-
-	credentialMetadata := &common.CredentialMetadataSerialization{}
-	_, err := asn1.Unmarshal(metadataAttributeBytes, credentialMetadata)
-	if err != nil {
-		return errors.Errorf("Could not unmarshal credential metadata")
-	}
-
-	cred.Pk, err = h.findIssuerPk(credentialMetadata.IssuerPkId)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
