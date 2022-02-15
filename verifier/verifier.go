@@ -7,6 +7,7 @@ import (
 	"github.com/minvws/nl-covid19-coronacheck-idemix/common"
 	"github.com/privacybydesign/gabi"
 	"github.com/privacybydesign/gabi/big"
+	gobig "math/big"
 )
 
 type Verifier struct {
@@ -27,40 +28,79 @@ func New(findIssuerPk common.FindIssuerPkFunc) *Verifier {
 	}
 }
 
-func (v *Verifier) VerifyQREncoded(proof []byte) (*VerifiedCredential, error) {
-	// Verify with the v2 proof serialization format
+func (v *Verifier) VerifyQREncoded(proof []byte) (verifiedCredential *VerifiedCredential, err error) {
+	// Get serialization version and verify before decoding
 	proofVersionByte, proofBase45, err := extractProofVersion(proof)
 	if err != nil {
 		return nil, err
 	}
 
-	if proofVersionByte != common.ProofVersionByte {
+	if proofVersionByte != common.ProofVersionByteV2 && proofVersionByte != common.ProofVersionByteV3 {
 		return nil, errors.Errorf("Unsupported proof version")
 	}
 
+	// Decode base45
 	proofAsn1, err := base45.Base45Decode(proofBase45)
 	if err != nil {
 		return nil, errors.Errorf("Could not base45 decode v2 proof")
 	}
 
-	verifiedCredential, err := v.verifyV2(proofAsn1)
+	// Deserialize the asn.1 structure. Upgrade V2 serializations to V3 first.
+	var ps *common.ProofSerializationV3
+	if proofVersionByte == common.ProofVersionByteV2 {
+		ps, err = deserializeV2ToV3(proofAsn1)
+	} else if proofVersionByte == common.ProofVersionByteV3 {
+		ps, err = deserializeV3(proofAsn1)
+	} else {
+		return nil, errors.Errorf("Unreachable unsupported proof version")
+	}
+
 	if err != nil {
-		return nil, errors.WrapPrefix(err, "Could not verify v2 proof", 0)
+		return nil, err
+	}
+
+	// Verify the proof
+	verifiedCredential, err = v.verify(ps)
+	if err != nil {
+		return nil, errors.WrapPrefix(err, "Could not verify proof", 0)
 	}
 
 	return verifiedCredential, nil
 }
 
-func (v *Verifier) verifyV2(proofAsn1 []byte) (*VerifiedCredential, error) {
-	// Deserialize proof
+func deserializeV2ToV3(proofAsn1 []byte) (*common.ProofSerializationV3, error) {
 	ps := &common.ProofSerializationV2{}
 	_, err := asn1.Unmarshal(proofAsn1, ps)
 	if err != nil {
-		return nil, errors.Errorf("Could not unmarshal proof")
+		return nil, errors.Errorf("Could not unmarshal v2 proof")
 	}
 
+	// Upgrade to V3
+	return &common.ProofSerializationV3{
+		DisclosureTimeSeconds: ps.DisclosureTimeSeconds,
+		C:                     ps.C,
+		A:                     ps.A,
+		EResponse:             ps.EResponse,
+		VResponse:             ps.VResponse,
+		AResponses:            []*gobig.Int{ps.AResponse},
+		ADisclosed:            ps.ADisclosed,
+	}, nil
+}
+
+func deserializeV3(proofAsn1 []byte) (*common.ProofSerializationV3, error) {
+	ps := &common.ProofSerializationV3{}
+	_, err := asn1.Unmarshal(proofAsn1, ps)
+	if err != nil {
+		return nil, errors.Errorf("Could not unmarshal v3 proof")
+	}
+
+	return ps, nil
+}
+
+func (v *Verifier) verify(ps *common.ProofSerializationV3) (*VerifiedCredential, error) {
 	// Decode metadata attribute
 	disclosedAmount := len(ps.ADisclosed)
+	hiddenAmount := len(ps.AResponses)
 	if disclosedAmount < 1 {
 		return nil, errors.Errorf("The metadata attribute must be disclosed")
 	}
@@ -70,31 +110,39 @@ func (v *Verifier) verifyV2(proofAsn1 []byte) (*VerifiedCredential, error) {
 		return nil, err
 	}
 
-	// See if there are enough disclosures, including the metadata attribute
+	// Ensure the amount of attributes matches the disclosed (minus metadata) plus hidden (minus secret key)
 	namedAttributeAmount := len(attributeTypes)
-	if disclosedAmount != namedAttributeAmount+1 {
-		return nil, errors.Errorf("Invalid amount of disclosures; expected %d disclosures", namedAttributeAmount)
+	if (disclosedAmount-1)+(hiddenAmount-1) != namedAttributeAmount {
+		return nil, errors.Errorf("Invalid amount of disclosures")
 	}
 
-	// Build proof
-	aDisclosed := map[int]*big.Int{}
-	for i := 0; i < disclosedAmount; i++ {
-		aDisclosed[i+1] = big.Convert(ps.ADisclosed[i])
+	// In addition to the secret key, only the category may be hidden
+	if hiddenAmount < 1 || hiddenAmount > 2 {
+		return nil, errors.Errorf("Invalid amount of hidden attributes")
 	}
 
+	// Build proof with disclosures and responses, where only the category can be hidden
 	proof := &gabi.ProofD{
 		C:          big.Convert(ps.C),
 		A:          big.Convert(ps.A),
 		EResponse:  big.Convert(ps.EResponse),
 		VResponse:  big.Convert(ps.VResponse),
-		AResponses: map[int]*big.Int{0: big.Convert(ps.AResponse)},
-		ADisclosed: aDisclosed,
+		AResponses: map[int]*big.Int{0: big.Convert(ps.AResponses[0])},
+		ADisclosed: map[int]*big.Int{},
 	}
 
-	return v.verifyCommon(proof, ps.DisclosureTimeSeconds)
+	for i, disclosed := range ps.ADisclosed {
+		proof.ADisclosed[1+i] = big.Convert(disclosed)
+	}
+
+	for i, hidden := range ps.AResponses[1:] {
+		proof.AResponses[1+disclosedAmount+i] = big.Convert(hidden)
+	}
+
+	return v.verifyProofD(proof, ps.DisclosureTimeSeconds)
 }
 
-func (v *Verifier) verifyCommon(proof *gabi.ProofD, disclosureTimeSeconds int64) (*VerifiedCredential, error) {
+func (v *Verifier) verifyProofD(proof *gabi.ProofD, disclosureTimeSeconds int64) (*VerifiedCredential, error) {
 	// Get metadata attribute (again)
 	credentialVersion, issuerPkId, attributeTypes, err := common.DecodeMetadataAttribute(proof.ADisclosed[1])
 	if err != nil {

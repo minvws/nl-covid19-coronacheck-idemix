@@ -17,10 +17,11 @@ import (
 var BigOne = big.NewInt(1)
 var GabiSystemParameters = gabi.DefaultSystemParameters[2048]
 
-var ProofVersionByte byte = '2'
+var ProofVersionByteV2 byte = '2'
+var ProofVersionByteV3 byte = '3'
 
 var AttributeTypes = map[int][]string{
-	2: []string{
+	2: {
 		"isSpecimen",
 		"isPaperProof",
 		"validFrom",
@@ -30,7 +31,7 @@ var AttributeTypes = map[int][]string{
 		"birthDay",
 		"birthMonth",
 	},
-	3: []string{
+	3: {
 		"isSpecimen",
 		"isPaperProof",
 		"validFrom",
@@ -58,6 +59,16 @@ type ProofSerializationV2 struct {
 	EResponse             *gobig.Int
 	VResponse             *gobig.Int
 	AResponse             *gobig.Int
+	ADisclosed            []*gobig.Int
+}
+
+type ProofSerializationV3 struct {
+	DisclosureTimeSeconds int64
+	C                     *gobig.Int
+	A                     *gobig.Int
+	EResponse             *gobig.Int
+	VResponse             *gobig.Int
+	AResponses            []*gobig.Int
 	ADisclosed            []*gobig.Int
 }
 
