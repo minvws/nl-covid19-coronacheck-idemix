@@ -10,8 +10,14 @@ import (
 	"time"
 )
 
-func (h *Holder) DiscloseWithTimeQREncoded(holderSk *big.Int, cred *gabi.Credential, hideCategory bool, now time.Time) (qr, proofIdentifier []byte, err error) {
-	proofAsn1, proofIdentifier, err := h.DiscloseWithTime(holderSk, cred, hideCategory, now)
+const (
+	CATEGORY_HIDDEN = 1 + iota
+	CATEGORY_DISCLOSED_V2_SERIALIZATION
+	CATEGORY_DISCLOSED_V3_SERIALIZATION
+)
+
+func (h *Holder) DiscloseWithTimeQREncoded(holderSk *big.Int, cred *gabi.Credential, categoryMode int, now time.Time) (qr, proofIdentifier []byte, err error) {
+	proofAsn1, proofIdentifier, err := h.DiscloseWithTime(holderSk, cred, categoryMode, now)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -23,13 +29,20 @@ func (h *Holder) DiscloseWithTimeQREncoded(holderSk *big.Int, cred *gabi.Credent
 	}
 
 	// Add prefix
-	prefix := []byte{'N', 'L', common.ProofVersionByteV3, ':'}
+	var proofVersionByte byte
+	if categoryMode == CATEGORY_DISCLOSED_V2_SERIALIZATION {
+		proofVersionByte = common.ProofVersionByteV2
+	} else {
+		proofVersionByte = common.ProofVersionByteV3
+	}
+
+	prefix := []byte{'N', 'L', proofVersionByte, ':'}
 	qr = append(prefix, proofBase45...)
 
 	return qr, proofIdentifier, nil
 }
 
-func (h *Holder) DiscloseWithTime(holderSk *big.Int, cred *gabi.Credential, hideCategory bool, now time.Time) (proofAsn1, proofIdentifier []byte, err error) {
+func (h *Holder) DiscloseWithTime(holderSk *big.Int, cred *gabi.Credential, categoryMode int, now time.Time) (proofAsn1, proofIdentifier []byte, err error) {
 	attributesAmount := len(cred.Attributes)
 	if attributesAmount < 2 {
 		return nil, nil, errors.Errorf("Invalid amount of credential attributes")
@@ -62,7 +75,7 @@ func (h *Holder) DiscloseWithTime(holderSk *big.Int, cred *gabi.Credential, hide
 	//  but except the secret key and possibly the category
 	disclosedIndices := []int{1}
 	for i, attributeType := range attributeTypes {
-		if !hideCategory || attributeType != "category" {
+		if categoryMode != CATEGORY_HIDDEN || attributeType != "category" {
 			disclosedIndices = append(disclosedIndices, i+2)
 		}
 	}
@@ -83,7 +96,7 @@ func (h *Holder) DiscloseWithTime(holderSk *big.Int, cred *gabi.Credential, hide
 	proof := proofList[0].(*gabi.ProofD)
 
 	// Serialize proof inside an asn.1 structure
-	ps := common.ProofSerializationV3{
+	ps := &common.ProofSerializationV3{
 		DisclosureTimeSeconds: disclosureTimeSeconds,
 		C:                     proof.C.Go(),
 		A:                     proof.A.Go(),
@@ -94,20 +107,49 @@ func (h *Holder) DiscloseWithTime(holderSk *big.Int, cred *gabi.Credential, hide
 	ps.AResponses = append(ps.AResponses, proof.AResponses[0].Go())
 	ps.ADisclosed = append(ps.ADisclosed, proof.ADisclosed[1].Go())
 	for i, attributeType := range attributeTypes {
-		if !hideCategory || attributeType != "category" {
+		if categoryMode != CATEGORY_HIDDEN || attributeType != "category" {
 			ps.ADisclosed = append(ps.ADisclosed, proof.ADisclosed[i+2].Go())
 		} else {
 			ps.AResponses = append(ps.AResponses, proof.AResponses[i+2].Go())
 		}
 	}
 
-	proofAsn1, err = asn1.Marshal(ps)
-	if err != nil {
-		return nil, nil, errors.WrapPrefix(err, "Could not ASN1 marshal proof", 0)
+	// Convert back to v2 serialization if so requested
+	if categoryMode == CATEGORY_DISCLOSED_V2_SERIALIZATION {
+		ps2, err := downgradeToV2Serialization(ps)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		proofAsn1, err = asn1.Marshal(*ps2)
+		if err != nil {
+			return nil, nil, errors.WrapPrefix(err, "Could not ASN1 marshal v2 proof", 0)
+		}
+	} else {
+		proofAsn1, err = asn1.Marshal(*ps)
+		if err != nil {
+			return nil, nil, errors.WrapPrefix(err, "Could not ASN1 marshal v3 proof", 0)
+		}
 	}
 
 	// Calculate proof identifier
 	proofIdentifier = common.CalculateProofIdentifier(proof)
 
 	return proofAsn1, proofIdentifier, nil
+}
+
+func downgradeToV2Serialization(ps *common.ProofSerializationV3) (*common.ProofSerializationV2, error) {
+	if len(ps.AResponses) != 1 {
+		return nil, errors.Errorf("Cannot downgrade to v2 serialization with more than one hidden attribute")
+	}
+
+	return &common.ProofSerializationV2{
+		DisclosureTimeSeconds: ps.DisclosureTimeSeconds,
+		C:                     ps.C,
+		A:                     ps.A,
+		EResponse:             ps.EResponse,
+		VResponse:             ps.VResponse,
+		AResponse:             ps.AResponses[0],
+		ADisclosed:            ps.ADisclosed,
+	}, nil
 }
