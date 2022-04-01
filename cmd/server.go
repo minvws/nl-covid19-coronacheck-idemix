@@ -42,8 +42,8 @@ func setServerFlags(cmd *cobra.Command) {
 	flags.String("listen-port", "4001", "port at which to listen")
 
 	flags.String("key-identifiers", "TST-KEY-01", "Public key identifiers, comma separated, when no keys map has been provided through configuration")
-	flags.String("public-key-path", "pk.xml", "Path to public key, when no keys map has been provided through configuration")
-	flags.String("private-key-path", "sk.xml", "Path to private key, when no keys map has been provided through configuration")
+	flags.String("public-key-path", "./testdata/pk.xml", "Path to public key, when no keys map has been provided through configuration")
+	flags.String("private-key-path", "./testdata/sk.xml", "Path to private key, when no keys map has been provided through configuration")
 
 	flags.Uint("prime-pool-size", 0, "Number of primes to buffer")
 	flags.Uint("prime-pool-lwm", 100, "Low water mark when the buffer is considered depleted")
