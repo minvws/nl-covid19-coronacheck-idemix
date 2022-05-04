@@ -28,20 +28,22 @@ type TB interface {
 }
 
 func TestCredentialVersion2(t *testing.T) {
-	testIssuanceDisclosureVerificationFlow(t, 2, false)
+	testIssuanceDisclosureVerificationFlow(t, 2, holder.CATEGORY_DISCLOSED_V2_SERIALIZATION)
+	testIssuanceDisclosureVerificationFlow(t, 2, holder.CATEGORY_DISCLOSED_V3_SERIALIZATION)
 	testStaticIssuanceFlow(t, 2)
 }
 
 func TestCredentialVersion3(t *testing.T) {
-	testIssuanceDisclosureVerificationFlow(t, 3, false)
+	testIssuanceDisclosureVerificationFlow(t, 3, holder.CATEGORY_DISCLOSED_V2_SERIALIZATION)
+	testIssuanceDisclosureVerificationFlow(t, 3, holder.CATEGORY_DISCLOSED_V3_SERIALIZATION)
 	testStaticIssuanceFlow(t, 3)
 }
 
 func TestHideCategory(t *testing.T) {
-	testIssuanceDisclosureVerificationFlow(t, 3, true)
+	testIssuanceDisclosureVerificationFlow(t, 3, holder.CATEGORY_HIDDEN)
 }
 
-func testIssuanceDisclosureVerificationFlow(t *testing.T, credentialVersion int, hideCategory bool) {
+func testIssuanceDisclosureVerificationFlow(t *testing.T, credentialVersion int, categoryMode int) {
 	credentialAmount := 3
 	iss, h, holderSk, v := createIHV(t, credentialVersion, true)
 
@@ -100,7 +102,7 @@ func testIssuanceDisclosureVerificationFlow(t *testing.T, credentialVersion int,
 		}
 
 		// Disclose
-		qr, proofIdentifier, err := h.DiscloseWithTimeQREncoded(holderSk, creds[i], hideCategory, time.Now())
+		qr, proofIdentifier, err := h.DiscloseWithTimeQREncoded(holderSk, creds[i], categoryMode, time.Now())
 		if err != nil {
 			t.Fatal("Could not disclosure credential:", err.Error())
 		}
@@ -111,7 +113,7 @@ func testIssuanceDisclosureVerificationFlow(t *testing.T, credentialVersion int,
 			t.Fatal("Could not verify disclosed credential:", err.Error())
 		}
 
-		if hideCategory {
+		if categoryMode == holder.CATEGORY_HIDDEN {
 			delete(credentialsAttributes[i], "category")
 		}
 
